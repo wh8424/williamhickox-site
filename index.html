@@ -21,7 +21,6 @@
     .underline { width: 48px; height: 2px; background: #F59E0B; margin: 12px 0 48px; }
     .section-title { font-size: 13px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px; }
 
-    /* Project card */
     .card { display: block; background: #1F2937; border: 1px solid #374151; border-radius: 8px; padding: 20px 24px; text-decoration: none; color: inherit; transition: border-color 0.2s; }
     .card:hover { border-color: #F59E0B; }
     .card-header { display: flex; align-items: center; justify-content: space-between; }
@@ -29,7 +28,7 @@
     .badge { font-size: 11px; color: #F59E0B; background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25); border-radius: 4px; padding: 2px 8px; }
     .card-desc { font-size: 14px; color: #9ca3af; margin-top: 6px; line-height: 1.5; }
 
-    /* Todo section */
+    /* Todo */
     .todo-section { margin-top: 48px; }
     .todo-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     @media (max-width: 500px) { .todo-cols { grid-template-columns: 1fr; } }
@@ -39,6 +38,7 @@
     .todo-item:hover .todo-delete { opacity: 1; }
     .todo-item.completed .todo-text { text-decoration: line-through; color: #4b5563; }
     .todo-item.completed .todo-meta { color: #374151; }
+    .todo-item.completed .todo-project-badge { opacity: 0.4; }
     .todo-cb { margin-top: 3px; width: 15px; height: 15px; accent-color: #F59E0B; cursor: pointer; flex-shrink: 0; }
     .todo-content { flex: 1; min-width: 0; }
     .todo-text { font-size: 13px; color: #e5e7eb; line-height: 1.4; }
@@ -50,10 +50,18 @@
     .todo-empty { font-size: 12px; color: #4b5563; font-style: italic; padding: 4px 0; }
     .todo-add-btn { background: none; border: none; color: #6b7280; font-size: 12px; cursor: pointer; padding: 8px 0 0; transition: color 0.15s; }
     .todo-add-btn:hover { color: #F59E0B; }
+    .todo-project-badge { display: inline-block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 6px; border-radius: 3px; margin-top: 3px; }
 
-    /* Add form */
+    /* Project filter */
+    .project-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .project-filter-btn { background: none; border: 1px solid #374151; color: #6b7280; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 10px; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+    .project-filter-btn:hover { border-color: #6b7280; color: #e5e7eb; }
+    .project-filter-btn.active { color: #fff; }
+
+    /* Form */
     .todo-form { margin-top: 8px; background: #1F2937; border: 1px solid #374151; border-radius: 6px; padding: 12px; }
     .todo-form input, .todo-form select { background: #111827; border: 1px solid #374151; border-radius: 4px; color: #e5e7eb; font-size: 12px; padding: 6px 8px; width: 100%; margin-bottom: 6px; outline: none; }
+    .todo-form input[type="date"] { font-family: 'Space Mono', monospace; color: #F0EDE8; }
     .todo-form input:focus, .todo-form select:focus { border-color: #F59E0B; }
     .todo-form select { appearance: auto; }
     .todo-form-row { display: flex; gap: 6px; }
@@ -74,7 +82,6 @@
     .modal-actions { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
     .modal-error { font-size: 11px; color: #E8694A; margin-top: 8px; }
     .hidden { display: none; }
-
     .footer { margin-top: 80px; font-size: 11px; color: #4b5563; }
   </style>
 </head>
@@ -92,9 +99,9 @@
       <div class="card-desc">Algorithmic FOREX trading system &mdash; EURUSD H1</div>
     </a>
 
-    <!-- Todo Section -->
     <div class="todo-section">
       <div class="section-title">To do</div>
+      <div id="project-filter-container"></div>
       <div class="todo-cols">
         <div>
           <div class="todo-col-title">Work</div>
@@ -111,7 +118,6 @@
       </div>
     </div>
 
-    <!-- PIN Modal -->
     <div id="pin-modal" class="modal-overlay hidden">
       <div class="modal">
         <div class="modal-title">Enter PIN</div>
@@ -124,29 +130,70 @@
       </div>
     </div>
 
+    <datalist id="project-options"></datalist>
+
     <div class="footer">&copy; <script>document.write(new Date().getFullYear())</script> William Hickox</div>
   </div>
 
 <script>
 const API = 'https://pfd-dashboard-production.up.railway.app/api/todos';
-let pinCallback = null;
 let pinResolve = null;
+let allTodos = { work: [], personal: [] };
+let projects = [];
+let activeProjectFilter = null;
 
 // ── Fetch & Render ──
 
 async function loadTodos() {
   try {
-    const [workRes, personalRes] = await Promise.all([
+    const [workRes, personalRes, projRes] = await Promise.all([
       fetch(API + '?list_type=work'),
       fetch(API + '?list_type=personal'),
+      fetch(API + '/projects'),
     ]);
-    const work = await workRes.json();
-    const personal = await personalRes.json();
-    renderList('work', work);
-    renderList('personal', personal);
+    allTodos.work = await workRes.json();
+    allTodos.personal = await personalRes.json();
+    projects = await projRes.json();
+    renderProjectFilter();
+    renderFiltered();
+    updateProjectDatalist();
   } catch (e) {
     console.error('Failed to load todos:', e);
   }
+}
+
+function renderFiltered() {
+  const filter = activeProjectFilter;
+  const workFiltered = filter ? allTodos.work.filter(t => t.project === filter) : allTodos.work;
+  const personalFiltered = filter ? allTodos.personal.filter(t => t.project === filter) : allTodos.personal;
+  renderList('work', workFiltered);
+  renderList('personal', personalFiltered);
+}
+
+function renderProjectFilter() {
+  const container = document.getElementById('project-filter-container');
+  if (!projects.length) { container.innerHTML = ''; return; }
+  let html = '<div class="project-filter">';
+  html += `<button class="project-filter-btn${!activeProjectFilter ? ' active' : ''}" onclick="setProjectFilter(null)" style="${!activeProjectFilter ? 'border-color:#F59E0B;color:#F59E0B' : ''}">All</button>`;
+  for (const p of projects) {
+    const isActive = activeProjectFilter === p.project;
+    const c = p.color || '#6b7280';
+    const style = isActive ? `border-color:${c};color:#fff;background:${c}33` : `border-color:${c}40;color:${c}`;
+    html += `<button class="project-filter-btn${isActive ? ' active' : ''}" onclick="setProjectFilter('${escAttr(p.project)}')" style="${style}">${escHtml(p.project)}</button>`;
+  }
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function setProjectFilter(project) {
+  activeProjectFilter = project;
+  renderProjectFilter();
+  renderFiltered();
+}
+
+function updateProjectDatalist() {
+  const dl = document.getElementById('project-options');
+  dl.innerHTML = projects.map(p => `<option value="${escAttr(p.project)}">`).join('');
 }
 
 function renderList(type, todos) {
@@ -164,6 +211,7 @@ function renderItem(t) {
   const cls = t.completed ? 'todo-item completed' : 'todo-item';
   const checked = t.completed ? 'checked' : '';
   const priorityDot = t.priority === 'high' ? '<span class="todo-priority-dot"></span>' : '';
+
   let meta = '';
   if (t.due_date) {
     const overdue = !t.completed && new Date(t.due_date) < new Date(new Date().toDateString());
@@ -172,22 +220,27 @@ function renderItem(t) {
   if (t.notes) {
     meta += `<span class="todo-meta">${escHtml(t.notes)}</span>`;
   }
+
+  let projectBadge = '';
+  if (t.project) {
+    const c = t.project_color || '#6b7280';
+    projectBadge = `<span class="todo-project-badge" style="background:${c}33;border:1px solid ${c};color:${c}">${escHtml(t.project)}</span>`;
+  }
+
   return `<li class="${cls}">
     ${priorityDot}
     <input type="checkbox" class="todo-cb" ${checked} onchange="toggleTodo(${t.id}, ${!t.completed})">
     <div class="todo-content">
       <div class="todo-text">${escHtml(t.title)}</div>
+      ${projectBadge}
       ${meta ? '<div>' + meta + '</div>' : ''}
     </div>
     <button class="todo-delete" onclick="deleteTodo(${t.id})">x</button>
   </li>`;
 }
 
-function escHtml(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function escAttr(s) { return s.replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
 
 // ── PIN Modal ──
 
@@ -197,7 +250,7 @@ function requestPin() {
     document.getElementById('pin-input').value = '';
     document.getElementById('pin-error').classList.add('hidden');
     document.getElementById('pin-modal').classList.remove('hidden');
-    document.getElementById('pin-input').focus();
+    setTimeout(() => document.getElementById('pin-input').focus(), 50);
   });
 }
 
@@ -229,8 +282,8 @@ async function toggleTodo(id, completed) {
       headers: { 'Content-Type': 'application/json', 'X-Todo-Pin': pin },
       body: JSON.stringify({ completed }),
     });
-    if (res.status === 401) { alert('Incorrect PIN'); }
-  } catch (e) { console.error(e); }
+    if (!res.ok) { console.error('Toggle failed:', res.status, await res.text()); if (res.status === 401) alert('Incorrect PIN'); }
+  } catch (e) { console.error('Toggle error:', e); }
   loadTodos();
 }
 
@@ -240,10 +293,10 @@ async function deleteTodo(id) {
   try {
     const res = await fetch(API + '/' + id, {
       method: 'DELETE',
-      headers: { 'X-Todo-Pin': pin },
+      headers: { 'Content-Type': 'application/json', 'X-Todo-Pin': pin },
     });
-    if (res.status === 401) { alert('Incorrect PIN'); }
-  } catch (e) { console.error(e); }
+    if (!res.ok) { console.error('Delete failed:', res.status, await res.text()); if (res.status === 401) alert('Incorrect PIN'); }
+  } catch (e) { console.error('Delete error:', e); }
   loadTodos();
 }
 
@@ -255,13 +308,14 @@ function showForm(type) {
   el.innerHTML = `
     <div class="todo-form">
       <input type="text" id="input-title-${type}" placeholder="Title">
+      <input type="text" id="input-project-${type}" placeholder="Project (optional)" list="project-options">
       <div class="todo-form-row">
         <select id="input-priority-${type}">
           <option value="low">Low</option>
           <option value="normal" selected>Normal</option>
           <option value="high">High</option>
         </select>
-        <input type="date" id="input-due-${type}">
+        <input type="date" id="input-due-${type}" placeholder="Due date">
       </div>
       <input type="text" id="input-notes-${type}" placeholder="Notes (optional)">
       <div id="form-error-${type}" class="form-error hidden"></div>
@@ -291,15 +345,26 @@ async function addTodo(type) {
   const priority = document.getElementById('input-priority-' + type).value;
   const due = document.getElementById('input-due-' + type).value || null;
   const notes = document.getElementById('input-notes-' + type).value.trim() || null;
+  const projectName = document.getElementById('input-project-' + type).value.trim() || null;
+
+  // Find existing project color or let backend assign
+  let projectColor = null;
+  if (projectName) {
+    const existing = projects.find(p => p.project === projectName);
+    projectColor = existing ? existing.color : null;
+  }
 
   const pin = await requestPin();
   if (!pin) return;
 
   try {
+    const body = { title, list_type: type, priority, due_date: due, notes, created_by: 'web' };
+    if (projectName) { body.project = projectName; if (projectColor) body.project_color = projectColor; }
+
     const res = await fetch(API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Todo-Pin': pin },
-      body: JSON.stringify({ title, list_type: type, priority, due_date: due, notes, created_by: 'web' }),
+      body: JSON.stringify(body),
     });
     if (res.status === 401) {
       const err = document.getElementById('form-error-' + type);
@@ -307,8 +372,9 @@ async function addTodo(type) {
       err.classList.remove('hidden');
       return;
     }
+    if (!res.ok) { console.error('Add failed:', res.status, await res.text()); return; }
     hideForm(type);
-  } catch (e) { console.error(e); }
+  } catch (e) { console.error('Add error:', e); }
   loadTodos();
 }
 
