@@ -14,76 +14,68 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
       padding: 40px 20px;
     }
-    .container {
-      max-width: 600px;
-      width: 100%;
-    }
-    .name {
-      font-size: 24px;
-      font-weight: 600;
-      color: #ffffff;
-      letter-spacing: -0.02em;
-    }
-    .underline {
-      width: 48px;
-      height: 2px;
-      background: #F59E0B;
-      margin-top: 12px;
-      margin-bottom: 48px;
-    }
-    .section-title {
-      font-size: 13px;
-      color: #6b7280;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 16px;
-    }
-    .card {
-      display: block;
-      background: #1F2937;
-      border: 1px solid #374151;
-      border-radius: 8px;
-      padding: 20px 24px;
-      text-decoration: none;
-      color: inherit;
-      transition: border-color 0.2s;
-    }
-    .card:hover {
-      border-color: #F59E0B;
-    }
-    .card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .card-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: #ffffff;
-    }
-    .badge {
-      font-size: 11px;
-      color: #F59E0B;
-      background: rgba(245, 158, 11, 0.1);
-      border: 1px solid rgba(245, 158, 11, 0.25);
-      border-radius: 4px;
-      padding: 2px 8px;
-      letter-spacing: 0.03em;
-    }
-    .card-desc {
-      font-size: 14px;
-      color: #9ca3af;
-      margin-top: 6px;
-      line-height: 1.5;
-    }
-    .footer {
-      margin-top: 80px;
-      font-size: 11px;
-      color: #4b5563;
-    }
+    .container { max-width: 640px; width: 100%; }
+    .name { font-size: 24px; font-weight: 600; color: #fff; letter-spacing: -0.02em; }
+    .underline { width: 48px; height: 2px; background: #F59E0B; margin: 12px 0 48px; }
+    .section-title { font-size: 13px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px; }
+
+    /* Project card */
+    .card { display: block; background: #1F2937; border: 1px solid #374151; border-radius: 8px; padding: 20px 24px; text-decoration: none; color: inherit; transition: border-color 0.2s; }
+    .card:hover { border-color: #F59E0B; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; }
+    .card-title { font-size: 16px; font-weight: 600; color: #fff; }
+    .badge { font-size: 11px; color: #F59E0B; background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25); border-radius: 4px; padding: 2px 8px; }
+    .card-desc { font-size: 14px; color: #9ca3af; margin-top: 6px; line-height: 1.5; }
+
+    /* Todo section */
+    .todo-section { margin-top: 48px; }
+    .todo-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 500px) { .todo-cols { grid-template-columns: 1fr; } }
+    .todo-col-title { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+    .todo-list { list-style: none; }
+    .todo-item { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; border-bottom: 1px solid #1F2937; position: relative; }
+    .todo-item:hover .todo-delete { opacity: 1; }
+    .todo-item.completed .todo-text { text-decoration: line-through; color: #4b5563; }
+    .todo-item.completed .todo-meta { color: #374151; }
+    .todo-cb { margin-top: 3px; width: 15px; height: 15px; accent-color: #F59E0B; cursor: pointer; flex-shrink: 0; }
+    .todo-content { flex: 1; min-width: 0; }
+    .todo-text { font-size: 13px; color: #e5e7eb; line-height: 1.4; }
+    .todo-meta { font-size: 11px; color: #6b7280; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .todo-meta.overdue { color: #E8694A; }
+    .todo-priority-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #E8694A; margin-right: 6px; flex-shrink: 0; margin-top: 6px; }
+    .todo-delete { opacity: 0; background: none; border: none; color: #6b7280; font-size: 14px; cursor: pointer; padding: 0 4px; line-height: 1; transition: opacity 0.15s; }
+    .todo-delete:hover { color: #E8694A; }
+    .todo-empty { font-size: 12px; color: #4b5563; font-style: italic; padding: 4px 0; }
+    .todo-add-btn { background: none; border: none; color: #6b7280; font-size: 12px; cursor: pointer; padding: 8px 0 0; transition: color 0.15s; }
+    .todo-add-btn:hover { color: #F59E0B; }
+
+    /* Add form */
+    .todo-form { margin-top: 8px; background: #1F2937; border: 1px solid #374151; border-radius: 6px; padding: 12px; }
+    .todo-form input, .todo-form select { background: #111827; border: 1px solid #374151; border-radius: 4px; color: #e5e7eb; font-size: 12px; padding: 6px 8px; width: 100%; margin-bottom: 6px; outline: none; }
+    .todo-form input:focus, .todo-form select:focus { border-color: #F59E0B; }
+    .todo-form select { appearance: auto; }
+    .todo-form-row { display: flex; gap: 6px; }
+    .todo-form-row > * { flex: 1; }
+    .todo-form-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .btn-add { background: #F59E0B; color: #111827; border: none; border-radius: 4px; font-size: 12px; font-weight: 600; padding: 6px 14px; cursor: pointer; }
+    .btn-add:hover { background: #d48a00; }
+    .btn-cancel { background: none; border: 1px solid #374151; color: #9ca3af; border-radius: 4px; font-size: 12px; padding: 6px 14px; cursor: pointer; }
+    .btn-cancel:hover { border-color: #6b7280; color: #e5e7eb; }
+    .form-error { font-size: 11px; color: #E8694A; margin-top: 4px; }
+
+    /* PIN modal */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .modal { background: #1F2937; border: 1px solid #374151; border-radius: 8px; padding: 24px; width: 280px; text-align: center; }
+    .modal-title { font-size: 14px; color: #e5e7eb; margin-bottom: 12px; }
+    .modal input { background: #111827; border: 1px solid #374151; border-radius: 4px; color: #e5e7eb; font-size: 18px; padding: 8px; width: 120px; text-align: center; letter-spacing: 0.3em; outline: none; }
+    .modal input:focus { border-color: #F59E0B; }
+    .modal-actions { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
+    .modal-error { font-size: 11px; color: #E8694A; margin-top: 8px; }
+    .hidden { display: none; }
+
+    .footer { margin-top: 80px; font-size: 11px; color: #4b5563; }
   </style>
 </head>
 <body>
@@ -92,7 +84,6 @@
     <div class="underline"></div>
 
     <div class="section-title">Projects</div>
-
     <a class="card" href="https://pfd.ea.williamhickox.com" target="_blank" rel="noopener">
       <div class="card-header">
         <span class="card-title">PFD EA</span>
@@ -101,7 +92,228 @@
       <div class="card-desc">Algorithmic FOREX trading system &mdash; EURUSD H1</div>
     </a>
 
+    <!-- Todo Section -->
+    <div class="todo-section">
+      <div class="section-title">To do</div>
+      <div class="todo-cols">
+        <div>
+          <div class="todo-col-title">Work</div>
+          <ul class="todo-list" id="todo-work"></ul>
+          <button class="todo-add-btn" onclick="showForm('work')">+ Add item</button>
+          <div id="form-work" class="hidden"></div>
+        </div>
+        <div>
+          <div class="todo-col-title">Personal</div>
+          <ul class="todo-list" id="todo-personal"></ul>
+          <button class="todo-add-btn" onclick="showForm('personal')">+ Add item</button>
+          <div id="form-personal" class="hidden"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PIN Modal -->
+    <div id="pin-modal" class="modal-overlay hidden">
+      <div class="modal">
+        <div class="modal-title">Enter PIN</div>
+        <input type="password" id="pin-input" maxlength="4" autocomplete="off">
+        <div id="pin-error" class="modal-error hidden"></div>
+        <div class="modal-actions">
+          <button class="btn-cancel" onclick="closePin()">Cancel</button>
+          <button class="btn-add" onclick="confirmPin()">Confirm</button>
+        </div>
+      </div>
+    </div>
+
     <div class="footer">&copy; <script>document.write(new Date().getFullYear())</script> William Hickox</div>
   </div>
+
+<script>
+const API = 'https://pfd-dashboard-production.up.railway.app/api/todos';
+let pinCallback = null;
+let pinResolve = null;
+
+// ── Fetch & Render ──
+
+async function loadTodos() {
+  try {
+    const [workRes, personalRes] = await Promise.all([
+      fetch(API + '?list_type=work'),
+      fetch(API + '?list_type=personal'),
+    ]);
+    const work = await workRes.json();
+    const personal = await personalRes.json();
+    renderList('work', work);
+    renderList('personal', personal);
+  } catch (e) {
+    console.error('Failed to load todos:', e);
+  }
+}
+
+function renderList(type, todos) {
+  const el = document.getElementById('todo-' + type);
+  if (!todos.length) {
+    el.innerHTML = '<li class="todo-empty">Nothing open</li>';
+    return;
+  }
+  const open = todos.filter(t => !t.completed);
+  const done = todos.filter(t => t.completed);
+  el.innerHTML = [...open, ...done].map(t => renderItem(t)).join('');
+}
+
+function renderItem(t) {
+  const cls = t.completed ? 'todo-item completed' : 'todo-item';
+  const checked = t.completed ? 'checked' : '';
+  const priorityDot = t.priority === 'high' ? '<span class="todo-priority-dot"></span>' : '';
+  let meta = '';
+  if (t.due_date) {
+    const overdue = !t.completed && new Date(t.due_date) < new Date(new Date().toDateString());
+    meta += `<span class="todo-meta${overdue ? ' overdue' : ''}">${overdue ? 'Overdue: ' : 'Due: '}${t.due_date}</span> `;
+  }
+  if (t.notes) {
+    meta += `<span class="todo-meta">${escHtml(t.notes)}</span>`;
+  }
+  return `<li class="${cls}">
+    ${priorityDot}
+    <input type="checkbox" class="todo-cb" ${checked} onchange="toggleTodo(${t.id}, ${!t.completed})">
+    <div class="todo-content">
+      <div class="todo-text">${escHtml(t.title)}</div>
+      ${meta ? '<div>' + meta + '</div>' : ''}
+    </div>
+    <button class="todo-delete" onclick="deleteTodo(${t.id})">x</button>
+  </li>`;
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ── PIN Modal ──
+
+function requestPin() {
+  return new Promise((resolve) => {
+    pinResolve = resolve;
+    document.getElementById('pin-input').value = '';
+    document.getElementById('pin-error').classList.add('hidden');
+    document.getElementById('pin-modal').classList.remove('hidden');
+    document.getElementById('pin-input').focus();
+  });
+}
+
+function closePin() {
+  document.getElementById('pin-modal').classList.add('hidden');
+  if (pinResolve) { pinResolve(null); pinResolve = null; }
+}
+
+function confirmPin() {
+  const pin = document.getElementById('pin-input').value;
+  if (!pin) return;
+  document.getElementById('pin-modal').classList.add('hidden');
+  if (pinResolve) { pinResolve(pin); pinResolve = null; }
+}
+
+document.getElementById('pin-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') confirmPin();
+  if (e.key === 'Escape') closePin();
+});
+
+// ── Actions ──
+
+async function toggleTodo(id, completed) {
+  const pin = await requestPin();
+  if (!pin) { loadTodos(); return; }
+  try {
+    const res = await fetch(API + '/' + id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-Todo-Pin': pin },
+      body: JSON.stringify({ completed }),
+    });
+    if (res.status === 401) { alert('Incorrect PIN'); }
+  } catch (e) { console.error(e); }
+  loadTodos();
+}
+
+async function deleteTodo(id) {
+  const pin = await requestPin();
+  if (!pin) return;
+  try {
+    const res = await fetch(API + '/' + id, {
+      method: 'DELETE',
+      headers: { 'X-Todo-Pin': pin },
+    });
+    if (res.status === 401) { alert('Incorrect PIN'); }
+  } catch (e) { console.error(e); }
+  loadTodos();
+}
+
+// ── Add Form ──
+
+function showForm(type) {
+  const el = document.getElementById('form-' + type);
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div class="todo-form">
+      <input type="text" id="input-title-${type}" placeholder="Title">
+      <div class="todo-form-row">
+        <select id="input-priority-${type}">
+          <option value="low">Low</option>
+          <option value="normal" selected>Normal</option>
+          <option value="high">High</option>
+        </select>
+        <input type="date" id="input-due-${type}">
+      </div>
+      <input type="text" id="input-notes-${type}" placeholder="Notes (optional)">
+      <div id="form-error-${type}" class="form-error hidden"></div>
+      <div class="todo-form-actions">
+        <button class="btn-add" onclick="addTodo('${type}')">Add</button>
+        <button class="btn-cancel" onclick="hideForm('${type}')">Cancel</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('input-title-' + type).focus();
+}
+
+function hideForm(type) {
+  const el = document.getElementById('form-' + type);
+  el.classList.add('hidden');
+  el.innerHTML = '';
+}
+
+async function addTodo(type) {
+  const title = document.getElementById('input-title-' + type).value.trim();
+  if (!title) {
+    const err = document.getElementById('form-error-' + type);
+    err.textContent = 'Title is required';
+    err.classList.remove('hidden');
+    return;
+  }
+  const priority = document.getElementById('input-priority-' + type).value;
+  const due = document.getElementById('input-due-' + type).value || null;
+  const notes = document.getElementById('input-notes-' + type).value.trim() || null;
+
+  const pin = await requestPin();
+  if (!pin) return;
+
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Todo-Pin': pin },
+      body: JSON.stringify({ title, list_type: type, priority, due_date: due, notes, created_by: 'web' }),
+    });
+    if (res.status === 401) {
+      const err = document.getElementById('form-error-' + type);
+      err.textContent = 'Incorrect PIN';
+      err.classList.remove('hidden');
+      return;
+    }
+    hideForm(type);
+  } catch (e) { console.error(e); }
+  loadTodos();
+}
+
+// ── Init ──
+loadTodos();
+</script>
 </body>
 </html>
