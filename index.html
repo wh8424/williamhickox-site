@@ -32,10 +32,10 @@
     .todo-section { margin-top: 48px; }
     .todo-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     @media (max-width: 500px) { .todo-cols { grid-template-columns: 1fr; } }
-    .todo-col-title { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+    .todo-col-title { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
     .todo-list { list-style: none; }
     .todo-item { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; border-bottom: 1px solid #1F2937; position: relative; }
-    .todo-item:hover .todo-delete { opacity: 1; }
+    .todo-item:hover .todo-actions { opacity: 1; }
     .todo-item.completed .todo-text { text-decoration: line-through; color: #4b5563; }
     .todo-item.completed .todo-meta { color: #374151; }
     .todo-item.completed .todo-project-badge { opacity: 0.4; }
@@ -45,12 +45,20 @@
     .todo-meta { font-size: 11px; color: #6b7280; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .todo-meta.overdue { color: #E8694A; }
     .todo-priority-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #E8694A; margin-right: 6px; flex-shrink: 0; margin-top: 6px; }
-    .todo-delete { opacity: 0; background: none; border: none; color: #6b7280; font-size: 14px; cursor: pointer; padding: 0 4px; line-height: 1; transition: opacity 0.15s; }
-    .todo-delete:hover { color: #E8694A; }
+    .todo-actions { opacity: 0; display: flex; gap: 2px; flex-shrink: 0; transition: opacity 0.15s; }
+    .todo-action-btn { background: none; border: none; color: #6b7280; font-size: 13px; cursor: pointer; padding: 0 3px; line-height: 1; }
+    .todo-action-btn:hover { color: #E8694A; }
     .todo-empty { font-size: 12px; color: #4b5563; font-style: italic; padding: 4px 0; }
     .todo-add-btn { background: none; border: none; color: #6b7280; font-size: 12px; cursor: pointer; padding: 8px 0 0; transition: color 0.15s; }
     .todo-add-btn:hover { color: #F59E0B; }
     .todo-project-badge { display: inline-block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 6px; border-radius: 3px; margin-top: 3px; }
+
+    /* Sort controls */
+    .sort-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+    .sort-label { font-size: 11px; color: #4b5563; }
+    .sort-btn { background: none; border: none; border-bottom: 1px solid transparent; color: #6b7280; font-size: 10px; cursor: pointer; padding: 2px 0; transition: all 0.15s; }
+    .sort-btn:hover { color: #e5e7eb; }
+    .sort-btn.active { color: #E8694A; border-bottom-color: #E8694A; }
 
     /* Project filter */
     .project-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
@@ -105,12 +113,24 @@
       <div class="todo-cols">
         <div>
           <div class="todo-col-title">Work</div>
+          <div class="sort-row">
+            <span class="sort-label">Sort:</span>
+            <button class="sort-btn active" onclick="setSort('work','priority')" id="sort-work-priority">Priority</button>
+            <button class="sort-btn" onclick="setSort('work','project')" id="sort-work-project">Project</button>
+            <button class="sort-btn" onclick="setSort('work','due')" id="sort-work-due">Due date</button>
+          </div>
           <ul class="todo-list" id="todo-work"></ul>
           <button class="todo-add-btn" onclick="showForm('work')">+ Add item</button>
           <div id="form-work" class="hidden"></div>
         </div>
         <div>
           <div class="todo-col-title">Personal</div>
+          <div class="sort-row">
+            <span class="sort-label">Sort:</span>
+            <button class="sort-btn active" onclick="setSort('personal','priority')" id="sort-personal-priority">Priority</button>
+            <button class="sort-btn" onclick="setSort('personal','project')" id="sort-personal-project">Project</button>
+            <button class="sort-btn" onclick="setSort('personal','due')" id="sort-personal-due">Due date</button>
+          </div>
           <ul class="todo-list" id="todo-personal"></ul>
           <button class="todo-add-btn" onclick="showForm('personal')">+ Add item</button>
           <div id="form-personal" class="hidden"></div>
@@ -131,7 +151,6 @@
     </div>
 
     <datalist id="project-options"></datalist>
-
     <div class="footer">&copy; <script>document.write(new Date().getFullYear())</script> William Hickox</div>
   </div>
 
@@ -141,6 +160,44 @@ let pinResolve = null;
 let allTodos = { work: [], personal: [] };
 let projects = [];
 let activeProjectFilter = null;
+let sortMode = { work: 'priority', personal: 'priority' };
+let editingId = null;
+
+// ── Sort ──
+
+function setSort(type, mode) {
+  sortMode[type] = mode;
+  ['priority','project','due'].forEach(m => {
+    const btn = document.getElementById('sort-' + type + '-' + m);
+    if (btn) { btn.classList.toggle('active', m === mode); }
+  });
+  renderFiltered();
+}
+
+function sortTodos(todos, mode) {
+  const prioMap = { high: 0, normal: 1, low: 2 };
+  const open = todos.filter(t => !t.completed);
+  const done = todos.filter(t => t.completed);
+
+  const sorter = (a, b) => {
+    if (mode === 'priority') {
+      return (prioMap[a.priority] ?? 1) - (prioMap[b.priority] ?? 1);
+    } else if (mode === 'project') {
+      const ap = (a.project || '\uffff').toLowerCase();
+      const bp = (b.project || '\uffff').toLowerCase();
+      return ap < bp ? -1 : ap > bp ? 1 : 0;
+    } else if (mode === 'due') {
+      const ad = a.due_date || '9999-12-31';
+      const bd = b.due_date || '9999-12-31';
+      return ad < bd ? -1 : ad > bd ? 1 : 0;
+    }
+    return 0;
+  };
+
+  open.sort(sorter);
+  done.sort(sorter);
+  return [...open, ...done];
+}
 
 // ── Fetch & Render ──
 
@@ -157,17 +214,15 @@ async function loadTodos() {
     renderProjectFilter();
     renderFiltered();
     updateProjectDatalist();
-  } catch (e) {
-    console.error('Failed to load todos:', e);
-  }
+  } catch (e) { console.error('Failed to load todos:', e); }
 }
 
 function renderFiltered() {
   const filter = activeProjectFilter;
-  const workFiltered = filter ? allTodos.work.filter(t => t.project === filter) : allTodos.work;
-  const personalFiltered = filter ? allTodos.personal.filter(t => t.project === filter) : allTodos.personal;
-  renderList('work', workFiltered);
-  renderList('personal', personalFiltered);
+  let work = filter ? allTodos.work.filter(t => t.project === filter) : allTodos.work;
+  let personal = filter ? allTodos.personal.filter(t => t.project === filter) : allTodos.personal;
+  renderList('work', sortTodos(work, sortMode.work));
+  renderList('personal', sortTodos(personal, sortMode.personal));
 }
 
 function renderProjectFilter() {
@@ -185,48 +240,30 @@ function renderProjectFilter() {
   container.innerHTML = html;
 }
 
-function setProjectFilter(project) {
-  activeProjectFilter = project;
-  renderProjectFilter();
-  renderFiltered();
-}
-
-function updateProjectDatalist() {
-  const dl = document.getElementById('project-options');
-  dl.innerHTML = projects.map(p => `<option value="${escAttr(p.project)}">`).join('');
-}
+function setProjectFilter(project) { activeProjectFilter = project; renderProjectFilter(); renderFiltered(); }
+function updateProjectDatalist() { document.getElementById('project-options').innerHTML = projects.map(p => `<option value="${escAttr(p.project)}">`).join(''); }
 
 function renderList(type, todos) {
   const el = document.getElementById('todo-' + type);
-  if (!todos.length) {
-    el.innerHTML = '<li class="todo-empty">Nothing open</li>';
-    return;
-  }
-  const open = todos.filter(t => !t.completed);
-  const done = todos.filter(t => t.completed);
-  el.innerHTML = [...open, ...done].map(t => renderItem(t)).join('');
+  if (!todos.length) { el.innerHTML = '<li class="todo-empty">Nothing open</li>'; return; }
+  el.innerHTML = todos.map(t => renderItem(t)).join('');
 }
 
 function renderItem(t) {
   const cls = t.completed ? 'todo-item completed' : 'todo-item';
   const checked = t.completed ? 'checked' : '';
   const priorityDot = t.priority === 'high' ? '<span class="todo-priority-dot"></span>' : '';
-
   let meta = '';
   if (t.due_date) {
     const overdue = !t.completed && new Date(t.due_date) < new Date(new Date().toDateString());
     meta += `<span class="todo-meta${overdue ? ' overdue' : ''}">${overdue ? 'Overdue: ' : 'Due: '}${t.due_date}</span> `;
   }
-  if (t.notes) {
-    meta += `<span class="todo-meta">${escHtml(t.notes)}</span>`;
-  }
-
+  if (t.notes) meta += `<span class="todo-meta">${escHtml(t.notes)}</span>`;
   let projectBadge = '';
   if (t.project) {
     const c = t.project_color || '#6b7280';
     projectBadge = `<span class="todo-project-badge" style="background:${c}33;border:1px solid ${c};color:${c}">${escHtml(t.project)}</span>`;
   }
-
   return `<li class="${cls}">
     ${priorityDot}
     <input type="checkbox" class="todo-cb" ${checked} onchange="toggleTodo(${t.id}, ${!t.completed})">
@@ -235,7 +272,10 @@ function renderItem(t) {
       ${projectBadge}
       ${meta ? '<div>' + meta + '</div>' : ''}
     </div>
-    <button class="todo-delete" onclick="deleteTodo(${t.id})">x</button>
+    <div class="todo-actions">
+      <button class="todo-action-btn" onclick="startEdit(${t.id})" title="Edit">&#9998;</button>
+      <button class="todo-action-btn" onclick="deleteTodo(${t.id})" title="Delete">x</button>
+    </div>
   </li>`;
 }
 
@@ -253,23 +293,9 @@ function requestPin() {
     setTimeout(() => document.getElementById('pin-input').focus(), 50);
   });
 }
-
-function closePin() {
-  document.getElementById('pin-modal').classList.add('hidden');
-  if (pinResolve) { pinResolve(null); pinResolve = null; }
-}
-
-function confirmPin() {
-  const pin = document.getElementById('pin-input').value;
-  if (!pin) return;
-  document.getElementById('pin-modal').classList.add('hidden');
-  if (pinResolve) { pinResolve(pin); pinResolve = null; }
-}
-
-document.getElementById('pin-input').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') confirmPin();
-  if (e.key === 'Escape') closePin();
-});
+function closePin() { document.getElementById('pin-modal').classList.add('hidden'); if (pinResolve) { pinResolve(null); pinResolve = null; } }
+function confirmPin() { const pin = document.getElementById('pin-input').value; if (!pin) return; document.getElementById('pin-modal').classList.add('hidden'); if (pinResolve) { pinResolve(pin); pinResolve = null; } }
+document.getElementById('pin-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmPin(); if (e.key === 'Escape') closePin(); });
 
 // ── Actions ──
 
@@ -277,12 +303,8 @@ async function toggleTodo(id, completed) {
   const pin = await requestPin();
   if (!pin) { loadTodos(); return; }
   try {
-    const res = await fetch(API + '/' + id, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'X-Todo-Pin': pin },
-      body: JSON.stringify({ completed }),
-    });
-    if (!res.ok) { console.error('Toggle failed:', res.status, await res.text()); if (res.status === 401) alert('Incorrect PIN'); }
+    const res = await fetch(API + '/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Todo-Pin': pin }, body: JSON.stringify({ completed }) });
+    if (!res.ok) { console.error('Toggle failed:', res.status); if (res.status === 401) alert('Incorrect PIN'); }
   } catch (e) { console.error('Toggle error:', e); }
   loadTodos();
 }
@@ -291,18 +313,98 @@ async function deleteTodo(id) {
   const pin = await requestPin();
   if (!pin) return;
   try {
-    const res = await fetch(API + '/' + id, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json', 'X-Todo-Pin': pin },
-    });
-    if (!res.ok) { console.error('Delete failed:', res.status, await res.text()); if (res.status === 401) alert('Incorrect PIN'); }
+    const res = await fetch(API + '/' + id, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Todo-Pin': pin } });
+    if (!res.ok) { console.error('Delete failed:', res.status); if (res.status === 401) alert('Incorrect PIN'); }
   } catch (e) { console.error('Delete error:', e); }
+  loadTodos();
+}
+
+// ── Edit ──
+
+function startEdit(id) {
+  const todo = [...allTodos.work, ...allTodos.personal].find(t => t.id === id);
+  if (!todo) return;
+  editingId = id;
+  const type = todo.list_type;
+  const el = document.getElementById('form-' + type);
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div class="todo-form">
+      <input type="text" id="edit-title-${type}" placeholder="Title" value="${escAttr(todo.title)}">
+      <input type="text" id="edit-project-${type}" placeholder="Project (optional)" list="project-options" value="${escAttr(todo.project || '')}">
+      <div class="todo-form-row">
+        <select id="edit-priority-${type}">
+          <option value="low"${todo.priority === 'low' ? ' selected' : ''}>Low</option>
+          <option value="normal"${todo.priority === 'normal' ? ' selected' : ''}>Normal</option>
+          <option value="high"${todo.priority === 'high' ? ' selected' : ''}>High</option>
+        </select>
+        <input type="date" id="edit-due-${type}" value="${todo.due_date || ''}">
+      </div>
+      <input type="text" id="edit-notes-${type}" placeholder="Notes (optional)" value="${escAttr(todo.notes || '')}">
+      <div id="edit-error-${type}" class="form-error hidden"></div>
+      <div class="todo-form-actions">
+        <button class="btn-add" onclick="saveEdit('${type}')">Save</button>
+        <button class="btn-cancel" onclick="cancelEdit('${type}')">Cancel</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('edit-title-' + type).focus();
+}
+
+function cancelEdit(type) {
+  editingId = null;
+  const el = document.getElementById('form-' + type);
+  el.classList.add('hidden');
+  el.innerHTML = '';
+}
+
+async function saveEdit(type) {
+  const title = document.getElementById('edit-title-' + type).value.trim();
+  if (!title) {
+    const err = document.getElementById('edit-error-' + type);
+    err.textContent = 'Title is required';
+    err.classList.remove('hidden');
+    return;
+  }
+  const priority = document.getElementById('edit-priority-' + type).value;
+  const due = document.getElementById('edit-due-' + type).value || null;
+  const notes = document.getElementById('edit-notes-' + type).value.trim() || null;
+  const projectName = document.getElementById('edit-project-' + type).value.trim() || null;
+
+  let projectColor = null;
+  if (projectName) {
+    const existing = projects.find(p => p.project === projectName);
+    projectColor = existing ? existing.color : null;
+  }
+
+  const pin = await requestPin();
+  if (!pin) return;
+
+  try {
+    const body = { title, priority, due_date: due, notes };
+    if (projectName !== undefined) { body.project = projectName; if (projectColor) body.project_color = projectColor; }
+
+    const res = await fetch(API + '/' + editingId, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-Todo-Pin': pin },
+      body: JSON.stringify(body),
+    });
+    if (res.status === 401) {
+      const err = document.getElementById('edit-error-' + type);
+      err.textContent = 'Incorrect PIN';
+      err.classList.remove('hidden');
+      return;
+    }
+    if (!res.ok) { console.error('Edit failed:', res.status); return; }
+    cancelEdit(type);
+  } catch (e) { console.error('Edit error:', e); }
   loadTodos();
 }
 
 // ── Add Form ──
 
 function showForm(type) {
+  editingId = null;
   const el = document.getElementById('form-' + type);
   el.classList.remove('hidden');
   el.innerHTML = `
@@ -328,31 +430,17 @@ function showForm(type) {
   document.getElementById('input-title-' + type).focus();
 }
 
-function hideForm(type) {
-  const el = document.getElementById('form-' + type);
-  el.classList.add('hidden');
-  el.innerHTML = '';
-}
+function hideForm(type) { document.getElementById('form-' + type).classList.add('hidden'); document.getElementById('form-' + type).innerHTML = ''; }
 
 async function addTodo(type) {
   const title = document.getElementById('input-title-' + type).value.trim();
-  if (!title) {
-    const err = document.getElementById('form-error-' + type);
-    err.textContent = 'Title is required';
-    err.classList.remove('hidden');
-    return;
-  }
+  if (!title) { const err = document.getElementById('form-error-' + type); err.textContent = 'Title is required'; err.classList.remove('hidden'); return; }
   const priority = document.getElementById('input-priority-' + type).value;
   const due = document.getElementById('input-due-' + type).value || null;
   const notes = document.getElementById('input-notes-' + type).value.trim() || null;
   const projectName = document.getElementById('input-project-' + type).value.trim() || null;
-
-  // Find existing project color or let backend assign
   let projectColor = null;
-  if (projectName) {
-    const existing = projects.find(p => p.project === projectName);
-    projectColor = existing ? existing.color : null;
-  }
+  if (projectName) { const existing = projects.find(p => p.project === projectName); projectColor = existing ? existing.color : null; }
 
   const pin = await requestPin();
   if (!pin) return;
@@ -360,19 +448,9 @@ async function addTodo(type) {
   try {
     const body = { title, list_type: type, priority, due_date: due, notes, created_by: 'web' };
     if (projectName) { body.project = projectName; if (projectColor) body.project_color = projectColor; }
-
-    const res = await fetch(API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Todo-Pin': pin },
-      body: JSON.stringify(body),
-    });
-    if (res.status === 401) {
-      const err = document.getElementById('form-error-' + type);
-      err.textContent = 'Incorrect PIN';
-      err.classList.remove('hidden');
-      return;
-    }
-    if (!res.ok) { console.error('Add failed:', res.status, await res.text()); return; }
+    const res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Todo-Pin': pin }, body: JSON.stringify(body) });
+    if (res.status === 401) { const err = document.getElementById('form-error-' + type); err.textContent = 'Incorrect PIN'; err.classList.remove('hidden'); return; }
+    if (!res.ok) { console.error('Add failed:', res.status); return; }
     hideForm(type);
   } catch (e) { console.error('Add error:', e); }
   loadTodos();
