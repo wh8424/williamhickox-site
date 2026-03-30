@@ -90,6 +90,10 @@
     .modal-actions { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
     .modal-error { font-size: 11px; color: #E8694A; margin-top: 8px; }
     .hidden { display: none; }
+    .todo-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .todo-header-row .section-title { margin-bottom: 0; }
+    .dl-btn { background: none; border: 1px solid #374151; color: #6b7280; font-size: 11px; padding: 4px 10px; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+    .dl-btn:hover { border-color: #F59E0B; color: #F59E0B; }
     .footer { margin-top: 80px; font-size: 11px; color: #4b5563; }
   </style>
 </head>
@@ -108,7 +112,10 @@
     </a>
 
     <div class="todo-section">
-      <div class="section-title">To do</div>
+      <div class="todo-header-row">
+        <div class="section-title">To do</div>
+        <button class="dl-btn" onclick="downloadAIGuide()">AI access guide</button>
+      </div>
       <div id="project-filter-container"></div>
       <div class="todo-cols">
         <div>
@@ -454,6 +461,190 @@ async function addTodo(type) {
     hideForm(type);
   } catch (e) { console.error('Add error:', e); }
   loadTodos();
+}
+
+// ── AI Guide Download ──
+
+async function downloadAIGuide() {
+  const pin = await requestPin();
+  if (!pin) return;
+  // Verify pin by attempting a lightweight write
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Todo-Pin': pin },
+      body: JSON.stringify({ title: '__pin_check__', list_type: 'work', created_by: 'pin_check' }),
+    });
+    if (res.status === 401) { alert('Incorrect PIN'); return; }
+    // Delete the check item
+    if (res.ok) {
+      const item = await res.json();
+      await fetch(API + '/' + item.id, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Todo-Pin': pin } });
+    }
+  } catch (e) { console.error(e); alert('Verification failed'); return; }
+
+  const doc = `williamhickox.com Todo List — AI Access Guide
+
+Overview
+This document gives you everything needed to read and write to
+William Hickox's shared todo list. You can add tasks, complete them,
+update them, and delete them programmatically.
+
+---
+
+API Base URL
+https://pfd-dashboard-production.up.railway.app/api/todos
+
+---
+
+Authentication
+All write operations (POST, PATCH, DELETE) require this header:
+
+  X-Api-Key: [PROVIDED SEPARATELY — ask Will for the key]
+
+Read operations (GET) require no authentication.
+
+---
+
+Endpoints
+
+Read all todos
+  GET /api/todos
+  Optional query params:
+    list_type=work       (work items only)
+    list_type=personal   (personal items only)
+  Returns array of todo objects.
+
+Read distinct projects
+  GET /api/todos/projects
+  Returns: [{ project: "PFD EA", color: "#4ECDC4" }, ...]
+
+Create a todo
+  POST /api/todos
+  Header: X-Api-Key: YOUR_KEY
+  Body (JSON):
+  {
+    "title": "Task title here",
+    "list_type": "work",          <- required: "work" or "personal"
+    "priority": "normal",         <- "low", "normal", or "high"
+    "project": "PFD EA",          <- optional, auto-assigns color
+    "notes": "Additional detail", <- optional
+    "due_date": "2026-04-05",     <- optional, format YYYY-MM-DD
+    "created_by": "claude"        <- put your AI name here
+  }
+
+Update a todo
+  PATCH /api/todos/{id}
+  Header: X-Api-Key: YOUR_KEY
+  Body (JSON) — include only fields you want to change:
+  {
+    "completed": true,
+    "notes": "Updated notes",
+    "priority": "high"
+  }
+  Note: setting completed=true automatically records completed_at timestamp.
+
+Delete a todo
+  DELETE /api/todos/{id}
+  Header: X-Api-Key: YOUR_KEY
+
+---
+
+Todo Object Structure
+Each todo returned from the API looks like this:
+{
+  "id": 1,
+  "title": "Task title",
+  "notes": "Optional notes",
+  "list_type": "work",
+  "project": "PFD EA",
+  "project_color": "#4ECDC4",
+  "completed": false,
+  "completed_at": null,
+  "created_at": "2026-03-30T00:00:00",
+  "created_by": "claude",
+  "due_date": "2026-04-05",
+  "priority": "normal",
+  "position": 0
+}
+
+---
+
+Priority Guide
+  "high"   — urgent, needs attention soon, shown with coral marker
+  "normal" — standard task, default
+  "low"    — nice to have, no urgency
+
+List Type Guide
+  "work"     — professional tasks, trading system, business
+  "personal" — personal errands, home, family
+
+Project Guide
+  Common projects already in use:
+    "PFD EA"  — algorithmic trading system tasks
+  Add new projects freely — color auto-assigns from a fixed palette
+
+---
+
+Example: Adding a task (curl)
+  curl -X POST \\
+    -H "Content-Type: application/json" \\
+    -H "X-Api-Key: YOUR_KEY" \\
+    -d '{
+      "title": "Review Apr 5 scorecard for go-live decision",
+      "list_type": "work",
+      "priority": "high",
+      "project": "PFD EA",
+      "due_date": "2026-04-05",
+      "created_by": "claude"
+    }' \\
+    https://pfd-dashboard-production.up.railway.app/api/todos
+
+Example: Marking complete (curl)
+  curl -X PATCH \\
+    -H "Content-Type: application/json" \\
+    -H "X-Api-Key: YOUR_KEY" \\
+    -d '{"completed": true}' \\
+    https://pfd-dashboard-production.up.railway.app/api/todos/1
+
+---
+
+Notes for AI Assistants
+
+  Always set created_by to your model name or identifier
+  so Will knows which AI added the task
+
+  Check existing todos before adding to avoid duplicates:
+  GET /api/todos and scan titles before POST
+
+  Use "high" priority sparingly — only for genuinely urgent items
+
+  Due dates help Will prioritize — include them when relevant
+
+  The todo list is visible publicly at williamhickox.com
+
+  Jamie (Will's wife) also uses this list — be considerate of
+  personal column items
+
+  When in doubt about list_type, use "work"
+
+  The API key is shared across all authorized AIs —
+  do not expose it publicly
+
+---
+
+Last updated: March 30, 2026
+`;
+
+  const blob = new Blob([doc], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'williamhickox-todo-ai-guide.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ── Init ──
