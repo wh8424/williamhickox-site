@@ -180,10 +180,13 @@ function autoProjectColor(name) {
   if (!name) return null;
   const existing = projects.find(p => p.project === name);
   if (existing && existing.color) return existing.color;
-  // Assign based on hash of name so same name always gets same color
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
-  return PROJECT_PALETTE[Math.abs(hash) % PROJECT_PALETTE.length];
+  // FNV-1a hash for better distribution across the palette
+  let hash = 2166136261;
+  for (let i = 0; i < name.length; i++) {
+    hash ^= name.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return PROJECT_PALETTE[((hash >>> 0) % PROJECT_PALETTE.length)];
 }
 
 // ── Sort ──
