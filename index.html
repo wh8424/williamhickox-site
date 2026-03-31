@@ -170,6 +170,22 @@ let activeProjectFilter = null;
 let sortMode = { work: 'priority', personal: 'priority' };
 let editingId = null;
 
+const PROJECT_PALETTE = [
+  '#4ECDC4', '#E8694A', '#F0A500', '#3B82F6', '#8B5CF6',
+  '#EC4899', '#10B981', '#F97316', '#6366F1', '#14B8A6',
+  '#D946EF', '#0EA5E9', '#84CC16', '#EF4444', '#A855F7',
+];
+
+function autoProjectColor(name) {
+  if (!name) return null;
+  const existing = projects.find(p => p.project === name);
+  if (existing && existing.color) return existing.color;
+  // Assign based on hash of name so same name always gets same color
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+  return PROJECT_PALETTE[Math.abs(hash) % PROJECT_PALETTE.length];
+}
+
 // ── Sort ──
 
 function setSort(type, mode) {
@@ -268,8 +284,8 @@ function renderItem(t) {
   if (t.notes) meta += `<span class="todo-meta">${escHtml(t.notes)}</span>`;
   let projectBadge = '';
   if (t.project) {
-    const c = t.project_color || '#6b7280';
-    projectBadge = `<span class="todo-project-badge" style="background:${c}33;border:1px solid ${c};color:${c}">${escHtml(t.project)}</span>`;
+    const c = t.project_color || autoProjectColor(t.project) || '#6b7280';
+    projectBadge = `<span class="todo-project-badge" style="background:${c};color:#fff">${escHtml(t.project)}</span>`;
   }
   return `<li class="${cls}">
     ${priorityDot}
@@ -378,18 +394,14 @@ async function saveEdit(type) {
   const notes = document.getElementById('edit-notes-' + type).value.trim() || null;
   const projectName = document.getElementById('edit-project-' + type).value.trim() || null;
 
-  let projectColor = null;
-  if (projectName) {
-    const existing = projects.find(p => p.project === projectName);
-    projectColor = existing ? existing.color : null;
-  }
+  const projectColor = autoProjectColor(projectName);
 
   const pin = await requestPin();
   if (!pin) return;
 
   try {
     const body = { title, priority, due_date: due, notes };
-    if (projectName !== undefined) { body.project = projectName; if (projectColor) body.project_color = projectColor; }
+    if (projectName !== undefined) { body.project = projectName; body.project_color = projectColor; }
 
     const res = await fetch(API + '/' + editingId, {
       method: 'PATCH',
@@ -446,15 +458,14 @@ async function addTodo(type) {
   const due = document.getElementById('input-due-' + type).value || null;
   const notes = document.getElementById('input-notes-' + type).value.trim() || null;
   const projectName = document.getElementById('input-project-' + type).value.trim() || null;
-  let projectColor = null;
-  if (projectName) { const existing = projects.find(p => p.project === projectName); projectColor = existing ? existing.color : null; }
+  const projectColor = autoProjectColor(projectName);
 
   const pin = await requestPin();
   if (!pin) return;
 
   try {
     const body = { title, list_type: type, priority, due_date: due, notes, created_by: 'web' };
-    if (projectName) { body.project = projectName; if (projectColor) body.project_color = projectColor; }
+    if (projectName) { body.project = projectName; body.project_color = projectColor; }
     const res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Todo-Pin': pin }, body: JSON.stringify(body) });
     if (res.status === 401) { const err = document.getElementById('form-error-' + type); err.textContent = 'Incorrect PIN'; err.classList.remove('hidden'); return; }
     if (!res.ok) { console.error('Add failed:', res.status); return; }
