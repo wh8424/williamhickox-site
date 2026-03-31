@@ -647,8 +647,65 @@ Last updated: March 30, 2026
   URL.revokeObjectURL(url);
 }
 
+// ── URL Param Pre-fill ──
+
+function checkUrlParams() {
+  const params = new URLSearchParams(window.location.search);
+  if (!params.get('addtodo')) return;
+
+  const type = params.get('list_type') || 'work';
+  // Wait for DOM to be ready, then open form and pre-fill
+  setTimeout(() => {
+    showForm(type);
+    setTimeout(() => {
+      const title = params.get('title');
+      const priority = params.get('priority');
+      const due = params.get('due_date');
+      const project = params.get('project');
+      const notes = params.get('notes');
+
+      if (title) {
+        const el = document.getElementById('input-title-' + type);
+        if (el) el.value = title;
+      }
+      if (priority) {
+        const el = document.getElementById('input-priority-' + type);
+        if (el) el.value = priority;
+      }
+      if (due) {
+        const el = document.getElementById('input-due-' + type);
+        if (el) el.value = due;
+      }
+      if (project) {
+        const el = document.getElementById('input-project-' + type);
+        if (el) el.value = project;
+      }
+      if (notes) {
+        const el = document.getElementById('input-notes-' + type);
+        if (el) el.value = notes;
+      }
+
+      // Focus the title field (or first empty field)
+      const titleEl = document.getElementById('input-title-' + type);
+      if (titleEl) titleEl.focus();
+    }, 100);
+  }, 500);
+}
+
+// Override addTodo to clear URL params after success
+const _origAddTodo = addTodo;
+addTodo = async function(type) {
+  const countBefore = allTodos[type].length;
+  await _origAddTodo(type);
+  // If a todo was added (list grew), clear URL params
+  if (window.location.search) {
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+};
+
 // ── Init ──
 loadTodos();
+checkUrlParams();
 </script>
 </body>
 </html>
