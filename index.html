@@ -111,6 +111,14 @@
       <div class="card-desc">Algorithmic FOREX trading system &mdash; EURUSD H1</div>
     </a>
 
+    <a class="card" href="https://crypto.williamhickox.com" target="_blank" rel="noopener" style="margin-top:12px">
+      <div class="card-header">
+        <span class="card-title">Crypto Grid Bot</span>
+        <span id="crypto-mode-badge" class="badge" style="background:rgba(240,165,0,0.1);border-color:rgba(240,165,0,0.25);color:#F0A500">SHADOW</span>
+      </div>
+      <div class="card-desc">BTC/USD &amp; ETH/USD grid trading &mdash; <span id="crypto-pnl" style="font-family:'Space Mono',monospace">loading...</span></div>
+    </a>
+
     <div class="todo-section">
       <div class="todo-header-row">
         <div class="section-title">To do</div>
@@ -717,9 +725,36 @@ addTodo = async function(type) {
   }
 };
 
+// ── Crypto Bot card ──
+async function loadCryptoSummary() {
+  try {
+    const res = await fetch('https://crypto-grid-bot-production-3aee.up.railway.app/api/public/summary');
+    const data = await res.json();
+    const el = document.getElementById('crypto-pnl');
+    const badge = document.getElementById('crypto-mode-badge');
+    if (el) {
+      const pnl = data.combined_pnl || 0;
+      const color = pnl >= 0 ? '#4ECDC4' : '#E8694A';
+      el.textContent = `P&L: $${pnl.toFixed(4)}`;
+      el.style.color = color;
+    }
+    if (badge && data.mode) {
+      const isLive = data.mode === 'LIVE';
+      badge.textContent = data.mode;
+      badge.style.color = isLive ? '#16a34a' : '#F0A500';
+      badge.style.borderColor = isLive ? 'rgba(22,163,74,0.25)' : 'rgba(240,165,0,0.25)';
+      badge.style.background = isLive ? 'rgba(22,163,74,0.1)' : 'rgba(240,165,0,0.1)';
+    }
+  } catch (e) {
+    const el = document.getElementById('crypto-pnl');
+    if (el) { el.textContent = 'offline'; el.style.color = '#6b7280'; }
+  }
+}
+
 // ── Init ──
 loadTodos();
 checkUrlParams();
+loadCryptoSummary();
 </script>
 </body>
 </html>
