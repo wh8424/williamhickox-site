@@ -111,6 +111,14 @@
       <div class="card-desc">Algorithmic FOREX trading system &mdash; EURUSD H1</div>
     </a>
 
+    <a class="card" href="https://yield.williamhickox.com" target="_blank" rel="noopener" style="margin-top:12px">
+      <div class="card-header">
+        <span class="card-title">Equity Bot</span>
+        <span class="badge" style="background:rgba(240,165,0,0.1);border-color:rgba(240,165,0,0.25);color:#F0A500">SHADOW</span>
+      </div>
+      <div class="card-desc">Benzinga Yield Report &mdash; <span id="equity-summary" style="font-family:'Space Mono',monospace">loading...</span></div>
+    </a>
+
     <a class="card" href="https://crypto.williamhickox.com" target="_blank" rel="noopener" style="margin-top:12px">
       <div class="card-header">
         <span class="card-title">Crypto Grid Bot</span>
@@ -725,6 +733,22 @@ addTodo = async function(type) {
   }
 };
 
+// ── Equity Bot card ──
+async function loadEquitySummary() {
+  try {
+    const res = await fetch('https://equity-bot-production.up.railway.app/api/public/summary');
+    const data = await res.json();
+    const el = document.getElementById('equity-summary');
+    if (el) {
+      el.textContent = `${data.total_positions} positions, ${data.flagged} flagged`;
+      el.style.color = data.flagged > 0 ? '#F0A500' : '#4ECDC4';
+    }
+  } catch (e) {
+    const el = document.getElementById('equity-summary');
+    if (el) { el.textContent = 'offline'; el.style.color = '#6b7280'; }
+  }
+}
+
 // ── Crypto Bot card ──
 async function loadCryptoSummary() {
   try {
@@ -754,6 +778,7 @@ async function loadCryptoSummary() {
 // ── Init ──
 loadTodos();
 checkUrlParams();
+loadEquitySummary();
 loadCryptoSummary();
 </script>
 </body>
