@@ -130,7 +130,10 @@
     <div class="todo-section">
       <div class="todo-header-row">
         <div class="section-title">To do</div>
-        <button class="dl-btn" onclick="downloadAIGuide()">AI access guide</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <a href="https://williamhickox.com/completed" style="font-size:11px;color:#6b7280;text-decoration:none;border:1px solid #374151;border-radius:4px;padding:3px 10px;transition:color 0.15s" onmouseover="this.style.color='#F59E0B'" onmouseout="this.style.color='#6b7280'">Completed log</a>
+          <button class="dl-btn" onclick="downloadAIGuide()">AI access guide</button>
+        </div>
       </div>
       <div id="project-filter-container"></div>
       <div class="todo-cols">
