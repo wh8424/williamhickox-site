@@ -47,6 +47,23 @@
     .todo-content { flex: 1; min-width: 0; }
     .todo-text { font-size: 13px; color: #e5e7eb; line-height: 1.4; overflow-wrap: anywhere; word-break: break-word; }
     .todo-meta { font-size: 11px; color: #6b7280; margin-top: 2px; overflow-wrap: anywhere; word-break: break-word; line-height: 1.4; }
+    /* Notes — clamped to 2 lines by default, click to expand/collapse. */
+    .todo-meta-notes {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      line-clamp: 2;
+      overflow: hidden;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .todo-meta-notes:hover { color: #9ca3af; }
+    .todo-meta-notes.expanded {
+      display: block;
+      -webkit-line-clamp: unset;
+      line-clamp: unset;
+      overflow: visible;
+    }
     .todo-meta.overdue { color: #E8694A; }
     .todo-priority-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #E8694A; margin-right: 6px; flex-shrink: 0; margin-top: 6px; }
     .todo-actions { opacity: 0; display: flex; gap: 2px; flex-shrink: 0; transition: opacity 0.15s; }
@@ -307,7 +324,7 @@ function renderItem(t) {
     const overdue = !t.completed && new Date(t.due_date) < new Date(new Date().toDateString());
     meta += `<span class="todo-meta${overdue ? ' overdue' : ''}">${overdue ? 'Overdue: ' : 'Due: '}${t.due_date}</span> `;
   }
-  if (t.notes) meta += `<span class="todo-meta">${escHtml(t.notes)}</span>`;
+  if (t.notes) meta += `<div class="todo-meta todo-meta-notes" onclick="this.classList.toggle('expanded')" title="Click to expand">${escHtml(t.notes)}</div>`;
   let projectBadge = '';
   if (t.project) {
     const c = t.project_color || autoProjectColor(t.project) || '#6b7280';
