@@ -59,12 +59,99 @@
     .modal-error { font-size: 11px; color: #E8694A; margin-top: 8px; }
     .hidden { display: none; }
     .footer { margin-top: 80px; font-size: 11px; color: #4b5563; }
+
+    /* AI agent API section */
+    .ai-guide details { background: #1F2937; border: 1px solid #374151; border-radius: 8px; padding: 16px 20px; transition: border-color 0.2s; }
+    .ai-guide details[open] { border-color: #F59E0B; }
+    .ai-guide summary { cursor: pointer; font-size: 14px; font-weight: 600; color: #fff; list-style: none; outline: none; display: flex; justify-content: space-between; align-items: center; }
+    .ai-guide summary::-webkit-details-marker { display: none; }
+    .ai-guide summary::after { content: '+'; color: #6b7280; font-size: 18px; font-weight: 300; line-height: 1; }
+    .ai-guide details[open] summary::after { content: '\2212'; color: #F59E0B; }
+    .ai-guide-sub { font-size: 12px; color: #6b7280; font-weight: 400; margin-top: 4px; }
+    .ai-guide-body { margin-top: 16px; font-size: 13px; color: #9ca3af; line-height: 1.6; }
+    .ai-guide-body h4 { color: #e5e7eb; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 16px; margin-bottom: 6px; font-weight: 600; }
+    .ai-guide-body h4:first-child { margin-top: 0; }
+    .ai-guide-body p { margin-bottom: 8px; }
+    .ai-guide-body ul { padding-left: 18px; margin-bottom: 4px; }
+    .ai-guide-body li { margin-bottom: 3px; }
+    .ai-guide-body code { background: #111827; color: #F59E0B; padding: 1px 6px; border-radius: 3px; font-family: 'Space Mono', ui-monospace, monospace; font-size: 12px; }
+    .ai-guide-body pre { background: #0D1520; border: 1px solid #374151; border-radius: 4px; padding: 10px 12px; overflow-x: auto; color: #e5e7eb; font-family: 'Space Mono', ui-monospace, monospace; font-size: 11px; line-height: 1.55; white-space: pre; }
+    .ai-guide-body a { color: #F59E0B; text-decoration: none; }
+    .ai-guide-body a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="name">William Hickox</div>
     <div class="underline"></div>
+
+    <div class="section">
+      <div class="section-title">Add todo</div>
+      <button class="todo-add-btn" id="add-btn" onclick="showForm()">+ Add item</button>
+      <div id="form-container" class="hidden"></div>
+    </div>
+
+    <div class="section ai-guide">
+      <div class="section-title">AI agent API</div>
+      <details>
+        <summary>
+          <span>How to add todos programmatically</span>
+        </summary>
+        <div class="ai-guide-body">
+          <p>Authorized AI assistants and scripts can add todos to this list via a single POST endpoint. Ask Will for the shared 4&#8209;digit PIN.</p>
+
+          <h4>Endpoint</h4>
+          <pre>POST https://www.williamhickox.com/api/create-todo</pre>
+
+          <h4>Headers</h4>
+          <pre>Content-Type: application/json
+X-Todo-Pin: &lt;4-digit pin&gt;</pre>
+
+          <h4>Body</h4>
+          <pre>{
+  "title":    "Task title here",     // required
+  "context":  "impossible",          // "personal" | "impossible"
+  "priority": "normal",              // "low" | "normal" | "high"
+  "due_date": "2026-04-30",          // optional, YYYY-MM-DD
+  "notes":    "Optional detail",     // optional
+  "source":   "claude"               // optional — identify yourself
+}</pre>
+
+          <h4>Context</h4>
+          <ul>
+            <li><code>impossible</code> &mdash; work items (trading systems, ops, business)</li>
+            <li><code>personal</code> &mdash; personal errands, home, family</li>
+          </ul>
+
+          <h4>Example (curl)</h4>
+          <pre>curl -X POST https://www.williamhickox.com/api/create-todo \
+  -H "Content-Type: application/json" \
+  -H "X-Todo-Pin: 1234" \
+  -d '{
+    "title":    "Review Apr 30 scorecard",
+    "context":  "impossible",
+    "priority": "high",
+    "due_date": "2026-04-30",
+    "source":   "claude"
+  }'</pre>
+
+          <h4>Responses</h4>
+          <ul>
+            <li><code>201</code> &mdash; todo created, body echoes it back</li>
+            <li><code>400</code> &mdash; missing/invalid title or context</li>
+            <li><code>401</code> &mdash; wrong or missing PIN</li>
+            <li><code>502</code> / <code>503</code> &mdash; upstream ops dashboard unreachable</li>
+          </ul>
+
+          <h4>Notes for AI assistants</h4>
+          <ul>
+            <li>Always set <code>source</code> so Will knows which AI added the task.</li>
+            <li>Use <code>priority: "high"</code> sparingly &mdash; only for genuinely urgent items.</li>
+            <li>The canonical list lives at <a href="https://ops.williamhickox.com" target="_blank" rel="noopener">ops.williamhickox.com</a> (Google sign-in required).</li>
+          </ul>
+        </div>
+      </details>
+    </div>
 
     <div class="section">
       <div class="section-title">Trading &amp; Ops</div>
@@ -75,12 +162,6 @@
         </div>
         <div class="card-desc">Ops command, PFD EA, Equity Bot, Crypto Grid Bot</div>
       </a>
-    </div>
-
-    <div class="section">
-      <div class="section-title">Add todo</div>
-      <button class="todo-add-btn" id="add-btn" onclick="showForm()">+ Add item</button>
-      <div id="form-container" class="hidden"></div>
     </div>
 
     <div id="pin-modal" class="modal-overlay hidden">
