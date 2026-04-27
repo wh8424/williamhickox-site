@@ -49,6 +49,31 @@
     .form-error { font-size: 11px; color: #E8694A; margin-top: 4px; }
     .form-success { font-size: 11px; color: #4ECDC4; }
 
+    /* Tag autocomplete */
+    .tag-picker { position: relative; flex: 1; }
+    .tag-picker input { margin-bottom: 0; }
+    .tag-suggestions {
+      position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+      background: #111827; border: 1px solid #374151; border-radius: 4px;
+      margin-top: 2px; max-height: 200px; overflow-y: auto;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    .tag-suggestion {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 8px; font-size: 12px; cursor: pointer;
+      border-bottom: 1px solid #1f2937;
+    }
+    .tag-suggestion:last-child { border-bottom: none; }
+    .tag-suggestion:hover, .tag-suggestion.tag-active { background: #1F2937; }
+    .tag-chip {
+      display: inline-block; font-size: 11px; padding: 1px 7px;
+      border-radius: 10px; border: 1px solid; font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .tag-suggestion-meta { color: #6b7280; font-size: 10px; margin-left: auto; }
+    .tag-create { color: #9ca3af; font-style: italic; }
+    .tag-create strong { color: #F59E0B; font-style: normal; font-weight: 600; }
+
     /* PIN modal */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
     .modal { background: #1F2937; border: 1px solid #374151; border-radius: 8px; padding: 24px; width: 280px; text-align: center; }
@@ -109,21 +134,26 @@ X-Todo-Pin: &lt;4-digit pin&gt;</pre>
 
           <h4>Body</h4>
           <pre>{
-  "title":    "Task title here",     // required
-  "context":  "impossible",          // "personal" | "ki-bio" | "impossible" | "trading"
-  "priority": "normal",              // "low" | "normal" | "high"
-  "due_date": "2026-04-30",          // optional, YYYY-MM-DD
-  "notes":    "Optional detail",     // optional
-  "source":   "claude"               // optional — identify yourself
+  "title":         "Task title here",  // required
+  "context":       "impossible",       // "personal" | "ki-bio" | "impossible" | "trading"
+  "project_tags":  ["sanova"],         // optional, array of strings
+  "priority":      "normal",           // "low" | "normal" | "high"
+  "due_date":      "2026-04-30",       // optional, YYYY-MM-DD
+  "notes":         "Optional detail",  // optional
+  "source":        "claude"            // optional — identify yourself
 }</pre>
 
           <h4>Context</h4>
+          <p>One of four reserved buckets the dashboard pulses on:</p>
           <ul>
             <li><code>personal</code> &mdash; errands, home, family</li>
             <li><code>ki-bio</code> &mdash; Ki-Bio company work</li>
             <li><code>impossible</code> &mdash; Impossible Outcomes work + general business/ops</li>
             <li><code>trading</code> &mdash; trading systems, bots, market work</li>
           </ul>
+
+          <h4>Project tags</h4>
+          <p>Free-form labels (e.g. <code>sanova</code>, <code>q3-launch</code>) for finer grouping. Use these for project-level breakouts within a context. Optional &mdash; pass <code>[]</code> or omit if unused. Existing tags can be discovered via <code>GET /api/todos/tags</code> (same <code>X-Todo-Api-Key</code> header).</p>
 
           <h4>Example (curl)</h4>
           <pre>curl -X POST https://www.williamhickox.com/api/create-todo \
@@ -221,12 +251,10 @@ function showForm() {
     <div class="todo-form">
       <input type="text" id="input-title" placeholder="Title">
       <div class="todo-form-row">
-        <select id="input-context">
-          <option value="personal">Personal</option>
-          <option value="ki-bio">Ki-Bio</option>
-          <option value="impossible" selected>Impossible</option>
-          <option value="trading">Trading</option>
-        </select>
+        <div class="tag-picker">
+          <input type="text" id="input-tag" placeholder="Tag (impossible, ki-bio, …)" autocomplete="off">
+          <div id="tag-suggestions" class="tag-suggestions hidden"></div>
+        </div>
         <select id="input-priority">
           <option value="low">Low</option>
           <option value="normal" selected>Normal</option>
@@ -243,6 +271,7 @@ function showForm() {
       </div>
     </div>
   `;
+  initTagPicker();
   document.getElementById('input-title').focus();
 }
 
@@ -252,10 +281,152 @@ function hideForm() {
   document.getElementById('add-btn').classList.remove('hidden');
 }
 
-// Allowed context values, must stay in sync with the ops API and the
-// dropdown options above. The ops side accepts these and uses them
-// for project-pulse grouping on /brief and /mobile.
+// Reserved context values — the four pulse buckets the ops side
+// aggregates on /brief and /mobile. Anything outside this set sent
+// from the form gets stored as a project_tag instead, with context
+// defaulting to 'impossible'.
 const ALLOWED_CONTEXTS = ['personal', 'ki-bio', 'impossible', 'trading'];
+
+// In-memory tag cache. Loaded once per form open from /api/tags
+// (Vercel proxy). Stays valid until the form is closed.
+let tagsCache = null;
+let tagActiveIdx = -1;
+let tagFilteredCache = [];
+
+async function loadTags() {
+  if (tagsCache) return tagsCache;
+  try {
+    const res = await fetch('/api/tags', { method: 'GET' });
+    if (!res.ok) return [];
+    const body = await res.json();
+    tagsCache = Array.isArray(body.tags) ? body.tags : [];
+  } catch (e) {
+    console.error('tags fetch failed:', e);
+    tagsCache = [];
+  }
+  return tagsCache;
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderSuggestions(query) {
+  const sug = document.getElementById('tag-suggestions');
+  if (!sug) return;
+  const q = query.trim().toLowerCase();
+  const tags = tagsCache || [];
+  // Filter: prefix match scores higher than substring match. Keep
+  // contexts always visible at the top when the query matches them.
+  const matches = tags
+    .filter((t) => !q || t.tag.toLowerCase().includes(q))
+    .slice(0, 12);
+  tagFilteredCache = matches.slice();
+  // Append "create new" row if the query is non-empty AND doesn't match
+  // any existing tag exactly. Treat as a synthetic suggestion at the end.
+  const exact = matches.some((t) => t.tag.toLowerCase() === q);
+  if (q && !exact) {
+    tagFilteredCache.push({ tag: query.trim(), color: null, kind: 'new' });
+  }
+  if (tagFilteredCache.length === 0) {
+    sug.classList.add('hidden');
+    return;
+  }
+  tagActiveIdx = 0;
+  sug.innerHTML = tagFilteredCache
+    .map((t, i) => {
+      if (t.kind === 'new') {
+        return `<div class="tag-suggestion tag-create${i === tagActiveIdx ? ' tag-active' : ''}" data-idx="${i}">
+          + Create new tag <strong>${escapeHtml(t.tag)}</strong>
+        </div>`;
+      }
+      const chipStyle =
+        `background:${t.color}22;color:${t.color};border-color:${t.color}`;
+      const meta = t.kind === 'context' ? 'context' : `${t.count}×`;
+      return `<div class="tag-suggestion${i === tagActiveIdx ? ' tag-active' : ''}" data-idx="${i}">
+        <span class="tag-chip" style="${chipStyle}">${escapeHtml(t.tag)}</span>
+        <span class="tag-suggestion-meta">${meta}</span>
+      </div>`;
+    })
+    .join('');
+  sug.classList.remove('hidden');
+}
+
+function pickSuggestion(idx) {
+  const choice = tagFilteredCache[idx];
+  if (!choice) return;
+  const input = document.getElementById('input-tag');
+  if (input) input.value = choice.tag;
+  document.getElementById('tag-suggestions').classList.add('hidden');
+}
+
+function initTagPicker() {
+  const input = document.getElementById('input-tag');
+  const sug = document.getElementById('tag-suggestions');
+  if (!input || !sug) return;
+  // Default to 'impossible' on open — matches prior implicit default
+  // for the "Work" option. User can clear or replace freely.
+  input.value = 'impossible';
+
+  loadTags().then(() => renderSuggestions(input.value));
+
+  input.addEventListener('focus', () => renderSuggestions(input.value));
+  input.addEventListener('input', () => renderSuggestions(input.value));
+  input.addEventListener('keydown', (e) => {
+    const items = tagFilteredCache;
+    if (e.key === 'ArrowDown') {
+      if (items.length === 0) return;
+      tagActiveIdx = (tagActiveIdx + 1) % items.length;
+      renderSuggestions(input.value);
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp') {
+      if (items.length === 0) return;
+      tagActiveIdx = (tagActiveIdx - 1 + items.length) % items.length;
+      renderSuggestions(input.value);
+      e.preventDefault();
+    } else if (e.key === 'Enter') {
+      // Enter inside the tag input picks the highlighted suggestion
+      // rather than submitting the form. Keeps single-keystroke flow.
+      if (tagActiveIdx >= 0 && items.length > 0) {
+        pickSuggestion(tagActiveIdx);
+        e.preventDefault();
+      }
+    } else if (e.key === 'Escape') {
+      sug.classList.add('hidden');
+    }
+  });
+  sug.addEventListener('mousedown', (e) => {
+    // mousedown not click — input.blur fires before click and would
+    // hide the dropdown before the click handler runs.
+    const target = e.target.closest('.tag-suggestion');
+    if (!target) return;
+    pickSuggestion(Number(target.dataset.idx));
+    e.preventDefault();
+  });
+  document.addEventListener('mousedown', (e) => {
+    if (!sug.contains(e.target) && e.target !== input) {
+      sug.classList.add('hidden');
+    }
+  });
+}
+
+function tagToContextAndProjectTags(rawTag) {
+  // Maps the single tag-picker value onto the API's separate
+  // (context, project_tags) shape. If the user picked one of the four
+  // reserved contexts, that's the context. Otherwise the value rides
+  // along as a project_tag with context defaulting to 'impossible'.
+  const tag = (rawTag || '').trim();
+  if (!tag) return { context: 'impossible', project_tags: [] };
+  if (ALLOWED_CONTEXTS.includes(tag)) {
+    return { context: tag, project_tags: [] };
+  }
+  return { context: 'impossible', project_tags: [tag] };
+}
 
 async function addTodo() {
   const errEl = document.getElementById('form-error');
@@ -267,8 +438,8 @@ async function addTodo() {
     errEl.classList.remove('hidden');
     return;
   }
-  let context = document.getElementById('input-context').value;
-  if (!ALLOWED_CONTEXTS.includes(context)) context = 'impossible';
+  const tagRaw = document.getElementById('input-tag').value;
+  const { context, project_tags } = tagToContextAndProjectTags(tagRaw);
   const priority = document.getElementById('input-priority').value;
   const due = document.getElementById('input-due').value || null;
   const notes = document.getElementById('input-notes').value.trim() || null;
@@ -279,6 +450,7 @@ async function addTodo() {
   const body = {
     title,
     context,
+    project_tags,
     priority,
     due_date: due,
     notes,
@@ -323,14 +495,15 @@ async function addTodo() {
 }
 
 // ── URL Param Pre-fill ──
-// Supports both new + legacy iOS Shortcuts / bookmarklets:
-//   New: ?addtodo=1&title=...&context=ki-bio&priority=high&due_date=2026-04-30&notes=...
-//   Old: ?addtodo=1&title=...&list_type=work|personal&...
-// list_type=work maps to context=impossible; list_type=personal stays
-// personal. New calls should send context= directly with one of
-// personal|ki-bio|impossible|trading.
+// Supports new + legacy iOS Shortcuts / bookmarklets:
+//   New:    ?addtodo=1&title=...&tag=ki-bio&priority=high&due_date=2026-04-30
+//   Also:   ?context=<any-tag>          (alias for ?tag=)
+//   Legacy: ?list_type=work|personal   (work → impossible, personal → personal)
+// The tag input accepts any string — context values land as `context`,
+// anything else rides along as project_tags=[value]. So callers can
+// pre-fill the field with project tags too: ?tag=sanova.
 
-function legacyListTypeToContext(listType) {
+function legacyListTypeToTag(listType) {
   if (listType === 'personal') return 'personal';
   if (listType === 'work') return 'impossible';
   return null;
@@ -345,11 +518,12 @@ function checkUrlParams() {
     setTimeout(() => {
       const fill = (id, v) => { if (v) { const el = document.getElementById(id); if (el) el.value = v; } };
       fill('input-title', params.get('title'));
-      // Prefer explicit ?context=, fall back to ?list_type= for old shortcuts.
-      const explicitCtx = params.get('context');
-      const legacyCtx = legacyListTypeToContext(params.get('list_type'));
-      const ctx = ALLOWED_CONTEXTS.includes(explicitCtx) ? explicitCtx : legacyCtx;
-      if (ctx) fill('input-context', ctx);
+      // Tag input: prefer ?tag=, then ?context=, then legacy ?list_type=.
+      const tagValue =
+        params.get('tag') ||
+        params.get('context') ||
+        legacyListTypeToTag(params.get('list_type'));
+      if (tagValue) fill('input-tag', tagValue);
       fill('input-priority', params.get('priority'));
       fill('input-due', params.get('due_date'));
       fill('input-notes', params.get('notes'));
