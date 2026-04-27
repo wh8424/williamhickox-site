@@ -110,7 +110,7 @@ X-Todo-Pin: &lt;4-digit pin&gt;</pre>
           <h4>Body</h4>
           <pre>{
   "title":    "Task title here",     // required
-  "context":  "impossible",          // "personal" | "impossible"
+  "context":  "impossible",          // "personal" | "ki-bio" | "impossible" | "trading"
   "priority": "normal",              // "low" | "normal" | "high"
   "due_date": "2026-04-30",          // optional, YYYY-MM-DD
   "notes":    "Optional detail",     // optional
@@ -119,8 +119,10 @@ X-Todo-Pin: &lt;4-digit pin&gt;</pre>
 
           <h4>Context</h4>
           <ul>
-            <li><code>impossible</code> &mdash; work items (trading systems, ops, business)</li>
-            <li><code>personal</code> &mdash; personal errands, home, family</li>
+            <li><code>personal</code> &mdash; errands, home, family</li>
+            <li><code>ki-bio</code> &mdash; Ki-Bio company work</li>
+            <li><code>impossible</code> &mdash; Impossible Outcomes work + general business/ops</li>
+            <li><code>trading</code> &mdash; trading systems, bots, market work</li>
           </ul>
 
           <h4>Example (curl)</h4>
@@ -219,9 +221,11 @@ function showForm() {
     <div class="todo-form">
       <input type="text" id="input-title" placeholder="Title">
       <div class="todo-form-row">
-        <select id="input-list-type">
-          <option value="work">Work</option>
+        <select id="input-context">
           <option value="personal">Personal</option>
+          <option value="ki-bio">Ki-Bio</option>
+          <option value="impossible" selected>Impossible</option>
+          <option value="trading">Trading</option>
         </select>
         <select id="input-priority">
           <option value="low">Low</option>
@@ -248,9 +252,10 @@ function hideForm() {
   document.getElementById('add-btn').classList.remove('hidden');
 }
 
-function listTypeToContext(listType) {
-  return listType === 'personal' ? 'personal' : 'impossible';
-}
+// Allowed context values, must stay in sync with the ops API and the
+// dropdown options above. The ops side accepts these and uses them
+// for project-pulse grouping on /brief and /mobile.
+const ALLOWED_CONTEXTS = ['personal', 'ki-bio', 'impossible', 'trading'];
 
 async function addTodo() {
   const errEl = document.getElementById('form-error');
@@ -262,7 +267,8 @@ async function addTodo() {
     errEl.classList.remove('hidden');
     return;
   }
-  const listType = document.getElementById('input-list-type').value;
+  let context = document.getElementById('input-context').value;
+  if (!ALLOWED_CONTEXTS.includes(context)) context = 'impossible';
   const priority = document.getElementById('input-priority').value;
   const due = document.getElementById('input-due').value || null;
   const notes = document.getElementById('input-notes').value.trim() || null;
@@ -272,7 +278,7 @@ async function addTodo() {
 
   const body = {
     title,
-    context: listTypeToContext(listType),
+    context,
     priority,
     due_date: due,
     notes,
@@ -317,7 +323,18 @@ async function addTodo() {
 }
 
 // ── URL Param Pre-fill ──
-// Keeps iOS Shortcuts / bookmarklets working: ?addtodo=1&title=...&list_type=work&priority=high&due_date=2026-04-30&notes=...
+// Supports both new + legacy iOS Shortcuts / bookmarklets:
+//   New: ?addtodo=1&title=...&context=ki-bio&priority=high&due_date=2026-04-30&notes=...
+//   Old: ?addtodo=1&title=...&list_type=work|personal&...
+// list_type=work maps to context=impossible; list_type=personal stays
+// personal. New calls should send context= directly with one of
+// personal|ki-bio|impossible|trading.
+
+function legacyListTypeToContext(listType) {
+  if (listType === 'personal') return 'personal';
+  if (listType === 'work') return 'impossible';
+  return null;
+}
 
 function checkUrlParams() {
   const params = new URLSearchParams(window.location.search);
@@ -328,7 +345,11 @@ function checkUrlParams() {
     setTimeout(() => {
       const fill = (id, v) => { if (v) { const el = document.getElementById(id); if (el) el.value = v; } };
       fill('input-title', params.get('title'));
-      fill('input-list-type', params.get('list_type'));
+      // Prefer explicit ?context=, fall back to ?list_type= for old shortcuts.
+      const explicitCtx = params.get('context');
+      const legacyCtx = legacyListTypeToContext(params.get('list_type'));
+      const ctx = ALLOWED_CONTEXTS.includes(explicitCtx) ? explicitCtx : legacyCtx;
+      if (ctx) fill('input-context', ctx);
       fill('input-priority', params.get('priority'));
       fill('input-due', params.get('due_date'));
       fill('input-notes', params.get('notes'));
