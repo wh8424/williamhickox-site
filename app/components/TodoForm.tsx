@@ -2,14 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 
-// Replaces the legacy index.html add-todo form. PIN modal is gone
-// (homepage is auth-gated now). Otherwise feature-parity:
+// Public todo form. Visible to every visitor. Authenticated visitors
+// (Auth.js session present) submit straight through. Unauthenticated
+// visitors (and iOS Shortcut callers) get prompted for a 4-digit PIN,
+// which is sent as X-Todo-Pin and verified server-side by
+// /api/create-todo against the TODO_PIN env var.
+//
+// Otherwise feature-parity with the legacy index.html form:
 //   - "+ Add item" button toggles the form
 //   - Title required
-//   - Tag autocomplete fetched from /api/tags (proxied to ops)
-//   - Priority + due date + notes fields
+//   - Tag autocomplete fetched from /api/tags (now public)
+//   - Priority + due date + notes
 //   - URL pre-fill via ?addtodo=1&tag=...&priority=...
-//   - Submit POSTs to /api/create-todo (Next.js route handler)
+//   - POST /api/create-todo with bot-context routing
 
 type TagEntry = {
   tag: string;
@@ -41,7 +46,11 @@ function tagToContextAndProjectTags(rawTag: string): {
   return { context: "impossible", project_tags: [t] };
 }
 
-export default function TodoForm() {
+export default function TodoForm({
+  authenticated,
+}: {
+  authenticated: boolean;
+}) {
   const [formVisible, setFormVisible] = useState(false);
   const [title, setTitle] = useState("");
   const [tag, setTag] = useState("impossible");
@@ -59,9 +68,14 @@ export default function TodoForm() {
   const tagInputRef = useRef<HTMLInputElement>(null);
   const sugRef = useRef<HTMLDivElement>(null);
 
-  // URL pre-fill on first mount: ?addtodo=1 opens the form and
-  // optionally pre-populates fields. Backwards-compat with the
-  // legacy ?list_type= shortcut.
+  // PIN modal state — only used when !authenticated
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pinValue, setPinValue] = useState("");
+  const [pinError, setPinError] = useState<string | null>(null);
+  const pinResolveRef = useRef<((p: string | null) => void) | null>(null);
+  const pinInputRef = useRef<HTMLInputElement>(null);
+
+  // URL pre-fill
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (!params.get("addtodo")) return;
@@ -80,7 +94,7 @@ export default function TodoForm() {
     if (n) setNotes(n);
   }, []);
 
-  // Load tags when the form opens.
+  // Load tags when form opens
   useEffect(() => {
     if (!formVisible || tagsCache) return;
     let cancelled = false;
@@ -102,7 +116,7 @@ export default function TodoForm() {
     };
   }, [formVisible, tagsCache]);
 
-  // Recompute filtered suggestions when tag input or cache changes.
+  // Recompute filtered suggestions
   useEffect(() => {
     if (!showSuggestions) return;
     const q = tag.trim().toLowerCase();
@@ -124,8 +138,7 @@ export default function TodoForm() {
     setActiveIdx(0);
   }, [tag, tagsCache, showSuggestions]);
 
-  // Click-outside to dismiss the suggestion dropdown. mousedown so
-  // the input.blur fires after the suggestion onClick handler runs.
+  // Click-outside dismiss
   useEffect(() => {
     if (!showSuggestions) return;
     function handler(e: MouseEvent) {
@@ -137,6 +150,13 @@ export default function TodoForm() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [showSuggestions]);
+
+  // Focus PIN input when modal opens
+  useEffect(() => {
+    if (pinModalOpen && pinInputRef.current) {
+      pinInputRef.current.focus();
+    }
+  }, [pinModalOpen]);
 
   function pickSuggestion(idx: number) {
     const choice = filtered[idx];
@@ -164,6 +184,25 @@ export default function TodoForm() {
     }
   }
 
+  // Open the PIN modal and return a Promise<string|null> resolving
+  // to the entered PIN (or null if cancelled). Awaited from addTodo.
+  function requestPin(): Promise<string | null> {
+    setPinValue("");
+    setPinError(null);
+    setPinModalOpen(true);
+    return new Promise<string | null>((resolve) => {
+      pinResolveRef.current = resolve;
+    });
+  }
+
+  function closePin(value: string | null) {
+    setPinModalOpen(false);
+    if (pinResolveRef.current) {
+      pinResolveRef.current(value);
+      pinResolveRef.current = null;
+    }
+  }
+
   async function addTodo() {
     setError(null);
     setStatusMsg(null);
@@ -182,13 +221,34 @@ export default function TodoForm() {
       notes: notes.trim() || null,
       source: "williamhickox.com",
     };
+
+    // Authenticated visitors skip the PIN. Anonymous visitors must
+    // present a PIN that /api/create-todo verifies against TODO_PIN.
+    let pin: string | null = null;
+    if (!authenticated) {
+      pin = await requestPin();
+      if (!pin) return; // user cancelled
+    }
+
     setPending(true);
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (pin) headers["X-Todo-Pin"] = pin;
       const res = await fetch("/api/create-todo", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(body),
       });
+      if (res.status === 401) {
+        setError(
+          authenticated
+            ? "Session expired. Refresh the page and try again."
+            : "Incorrect PIN",
+        );
+        return;
+      }
       if (!res.ok) {
         let msg = `Add failed: HTTP ${res.status}`;
         try {
@@ -202,9 +262,6 @@ export default function TodoForm() {
         return;
       }
       setStatusMsg("Added");
-      // Reset most fields but keep the tag/priority defaults so the
-      // next add is one less keystroke. URL params get cleared so a
-      // refresh doesn't re-fire the prefill flow.
       setTitle("");
       setDue("");
       setNotes("");
@@ -222,161 +279,207 @@ export default function TodoForm() {
     }
   }
 
-  if (!formVisible) {
-    return (
-      <button
-        className="todo-add-btn"
-        type="button"
-        onClick={() => {
-          setFormVisible(true);
-          setTimeout(() => {
-            // Focus the title input shortly after mount.
-            const titleEl = document.getElementById("input-title");
-            if (titleEl) (titleEl as HTMLInputElement).focus();
-          }, 50);
-        }}
-      >
-        + Add item
-      </button>
-    );
-  }
-
   return (
-    <div className="todo-form">
-      <input
-        id="input-title"
-        type="text"
-        placeholder="Title"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        disabled={pending}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") addTodo();
-        }}
-      />
-      <div className="todo-form-row">
-        <div className="tag-picker">
-          <input
-            ref={tagInputRef}
-            type="text"
-            id="input-tag"
-            placeholder="Tag (impossible, ki-bio, …)"
-            autoComplete="off"
-            value={tag}
-            disabled={pending}
-            onChange={(e) => {
-              setTag(e.target.value);
-              setShowSuggestions(true);
-            }}
-            onFocus={() => setShowSuggestions(true)}
-            onKeyDown={onTagKeyDown}
-          />
-          {showSuggestions && filtered.length > 0 && (
-            <div ref={sugRef} className="tag-suggestions">
-              {filtered.map((t, i) => {
-                const isCreate =
-                  t.count === 0 &&
-                  !ALLOWED_CONTEXTS.has(t.tag) &&
-                  !(tagsCache ?? []).some(
-                    (x) => x.tag.toLowerCase() === t.tag.toLowerCase(),
-                  );
-                if (isCreate) {
-                  return (
-                    <div
-                      key={`new-${i}`}
-                      className={`tag-suggestion tag-create${
-                        i === activeIdx ? " tag-active" : ""
-                      }`}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        pickSuggestion(i);
-                      }}
-                    >
-                      + Create new tag <strong>{t.tag}</strong>
-                    </div>
-                  );
-                }
-                return (
-                  <div
-                    key={t.tag}
-                    className={`tag-suggestion${
-                      i === activeIdx ? " tag-active" : ""
-                    }`}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      pickSuggestion(i);
-                    }}
-                  >
-                    <span
-                      className="tag-chip"
-                      style={{
-                        background: `${t.color}22`,
-                        color: t.color,
-                        borderColor: t.color,
-                      }}
-                    >
-                      {t.tag}
-                    </span>
-                    <span className="tag-suggestion-meta">
-                      {t.kind === "context" ? "context" : `${t.count}×`}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        <select
-          id="input-priority"
-          value={priority}
-          onChange={(e) => setPriority(e.target.value)}
-          disabled={pending}
-        >
-          <option value="low">Low</option>
-          <option value="normal">Normal</option>
-          <option value="high">High</option>
-        </select>
-      </div>
-      <input
-        type="date"
-        value={due}
-        onChange={(e) => setDue(e.target.value)}
-        disabled={pending}
-      />
-      <input
-        type="text"
-        placeholder="Notes (optional)"
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
-        disabled={pending}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") addTodo();
-        }}
-      />
-      {error && <div className="form-error">{error}</div>}
-      <div className="todo-form-actions">
+    <>
+      {!formVisible ? (
         <button
-          className="btn-add"
-          type="button"
-          onClick={addTodo}
-          disabled={pending || !title.trim()}
-        >
-          {pending ? "Adding…" : "Add"}
-        </button>
-        <button
-          className="btn-cancel"
+          className="todo-add-btn"
           type="button"
           onClick={() => {
-            setFormVisible(false);
-            setError(null);
-            setStatusMsg(null);
+            setFormVisible(true);
+            setTimeout(() => {
+              const titleEl = document.getElementById("input-title");
+              if (titleEl) (titleEl as HTMLInputElement).focus();
+            }, 50);
           }}
-          disabled={pending}
         >
-          Cancel
+          + Add item
         </button>
-        {statusMsg && <span className="form-success">{statusMsg}</span>}
-      </div>
-    </div>
+      ) : (
+        <div className="todo-form">
+          <input
+            id="input-title"
+            type="text"
+            placeholder="Title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            disabled={pending}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") addTodo();
+            }}
+          />
+          <div className="todo-form-row">
+            <div className="tag-picker">
+              <input
+                ref={tagInputRef}
+                type="text"
+                id="input-tag"
+                placeholder="Tag (impossible, ki-bio, …)"
+                autoComplete="off"
+                value={tag}
+                disabled={pending}
+                onChange={(e) => {
+                  setTag(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                onKeyDown={onTagKeyDown}
+              />
+              {showSuggestions && filtered.length > 0 && (
+                <div ref={sugRef} className="tag-suggestions">
+                  {filtered.map((t, i) => {
+                    const isCreate =
+                      t.count === 0 &&
+                      !ALLOWED_CONTEXTS.has(t.tag) &&
+                      !(tagsCache ?? []).some(
+                        (x) => x.tag.toLowerCase() === t.tag.toLowerCase(),
+                      );
+                    if (isCreate) {
+                      return (
+                        <div
+                          key={`new-${i}`}
+                          className={`tag-suggestion tag-create${
+                            i === activeIdx ? " tag-active" : ""
+                          }`}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            pickSuggestion(i);
+                          }}
+                        >
+                          + Create new tag <strong>{t.tag}</strong>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div
+                        key={t.tag}
+                        className={`tag-suggestion${
+                          i === activeIdx ? " tag-active" : ""
+                        }`}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          pickSuggestion(i);
+                        }}
+                      >
+                        <span
+                          className="tag-chip"
+                          style={{
+                            background: `${t.color}22`,
+                            color: t.color,
+                            borderColor: t.color,
+                          }}
+                        >
+                          {t.tag}
+                        </span>
+                        <span className="tag-suggestion-meta">
+                          {t.kind === "context" ? "context" : `${t.count}×`}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <select
+              id="input-priority"
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+              disabled={pending}
+            >
+              <option value="low">Low</option>
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <input
+            type="date"
+            value={due}
+            onChange={(e) => setDue(e.target.value)}
+            disabled={pending}
+          />
+          <input
+            type="text"
+            placeholder="Notes (optional)"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            disabled={pending}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") addTodo();
+            }}
+          />
+          {error && <div className="form-error">{error}</div>}
+          <div className="todo-form-actions">
+            <button
+              className="btn-add"
+              type="button"
+              onClick={addTodo}
+              disabled={pending || !title.trim()}
+            >
+              {pending ? "Adding…" : "Add"}
+            </button>
+            <button
+              className="btn-cancel"
+              type="button"
+              onClick={() => {
+                setFormVisible(false);
+                setError(null);
+                setStatusMsg(null);
+              }}
+              disabled={pending}
+            >
+              Cancel
+            </button>
+            {statusMsg && <span className="form-success">{statusMsg}</span>}
+          </div>
+        </div>
+      )}
+
+      {pinModalOpen && (
+        <div
+          className="modal-overlay"
+          onClick={(e) => {
+            // Click the dim backdrop to cancel.
+            if (e.target === e.currentTarget) closePin(null);
+          }}
+        >
+          <div className="modal" role="dialog" aria-modal="true">
+            <div className="modal-title">Enter PIN</div>
+            <input
+              ref={pinInputRef}
+              type="password"
+              maxLength={4}
+              autoComplete="off"
+              value={pinValue}
+              onChange={(e) => setPinValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  if (pinValue) closePin(pinValue);
+                } else if (e.key === "Escape") {
+                  closePin(null);
+                }
+              }}
+            />
+            {pinError && <div className="modal-error">{pinError}</div>}
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn-cancel"
+                onClick={() => closePin(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-add"
+                disabled={!pinValue}
+                onClick={() => closePin(pinValue)}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

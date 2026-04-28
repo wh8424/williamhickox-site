@@ -1,23 +1,18 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/tags
  *
- * Replaces api/tags.js. Auth-gated now (NextAuth session required —
- * the autocomplete is only used inside the signed-in homepage form).
- * Forwards to ops.williamhickox.com/api/todos/tags using the
- * server-held TODO_PUBLIC_API_KEY.
+ * Public — no auth check. The autocomplete is used by the public
+ * homepage todo form, and the underlying ops endpoint already
+ * requires the server-held TODO_PUBLIC_API_KEY (which never reaches
+ * the browser). Read-only, no side effects, low risk.
  */
 const OPS_URL = "https://ops.williamhickox.com/api/todos/tags";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
   const apiKey = process.env.TODO_PUBLIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -36,9 +31,8 @@ export async function GET() {
       headers: {
         "Content-Type":
           upstream.headers.get("content-type") || "application/json",
-        // Match the prior Vercel-fn cache hint so repeated form
-        // opens during one session don't slam upstream.
-        "Cache-Control": "private, max-age=60",
+        // Public read-only endpoint; can be edge-cached briefly.
+        "Cache-Control": "public, max-age=60, stale-while-revalidate=300",
       },
     });
   } catch (e) {
