@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "15.5.0",
+    "next": "15.5.15",
     "next-auth": "5.0.0-beta.25",
     "jose": "5.9.6",
     "react": "19.0.0",
