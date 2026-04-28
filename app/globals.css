@@ -1,0 +1,131 @@
+/* Ported from the legacy index.html. Same dark theme, same component
+ * classes used by the new TodoForm + AiGuide components. PIN modal
+ * styles removed (the homepage is auth-gated now). */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #111827;
+  color: #e5e7eb;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px;
+}
+.container { max-width: 640px; width: 100%; }
+.name { font-size: 24px; font-weight: 600; color: #fff; letter-spacing: -0.02em; }
+.underline { width: 48px; height: 2px; background: #F59E0B; margin: 12px 0 48px; }
+.section-title { font-size: 13px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px; }
+.section { margin-bottom: 40px; }
+
+.card { display: block; background: #1F2937; border: 1px solid #374151; border-radius: 8px; padding: 20px 24px; text-decoration: none; color: inherit; transition: border-color 0.2s; }
+.card:hover { border-color: #F59E0B; }
+.card-header { display: flex; align-items: center; justify-content: space-between; }
+.card-title { font-size: 16px; font-weight: 600; color: #fff; }
+.badge { font-size: 11px; color: #F59E0B; background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25); border-radius: 4px; padding: 2px 8px; }
+.card-desc { font-size: 14px; color: #9ca3af; margin-top: 6px; line-height: 1.5; }
+
+/* Sign-in (pre-login) */
+.signin-card {
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  background: #1F2937; border: 1px solid #374151; border-radius: 8px;
+  padding: 32px 24px; margin: 16px 0;
+}
+.signin-card-title { font-size: 14px; color: #9ca3af; }
+.btn-signin {
+  background: #F59E0B; color: #111827; border: none; border-radius: 4px;
+  font-size: 13px; font-weight: 600; padding: 10px 18px; cursor: pointer;
+  font-family: inherit;
+}
+.btn-signin:hover { background: #d48a00; }
+
+/* Nav bar (post-login) */
+.navbar {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin: 4px 0 32px;
+}
+.nav-link {
+  flex: 1 1 auto; min-width: 110px;
+  background: #1F2937; border: 1px solid #374151;
+  border-radius: 6px; padding: 12px 16px; text-align: center;
+  color: #e5e7eb; text-decoration: none; font-size: 13px; font-weight: 500;
+  cursor: pointer; font-family: inherit;
+  transition: border-color 0.15s, color 0.15s;
+}
+.nav-link:hover:not(:disabled) { border-color: #F59E0B; color: #F59E0B; }
+.nav-link:disabled { opacity: 0.6; cursor: wait; }
+.user-strip {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 11px; color: #6b7280; margin-bottom: 16px;
+}
+.btn-signout {
+  background: none; border: none; color: #6b7280; font-size: 11px;
+  cursor: pointer; padding: 0; font-family: inherit;
+  text-decoration: underline;
+}
+.btn-signout:hover { color: #e5e7eb; }
+
+.todo-add-btn { background: none; border: 1px dashed #374151; color: #6b7280; font-size: 13px; cursor: pointer; padding: 12px; border-radius: 6px; width: 100%; transition: all 0.15s; font-family: inherit; }
+.todo-add-btn:hover { color: #F59E0B; border-color: #F59E0B; }
+
+/* Form */
+.todo-form { background: #1F2937; border: 1px solid #374151; border-radius: 6px; padding: 12px; }
+.todo-form input, .todo-form select { background: #111827; border: 1px solid #374151; border-radius: 4px; color: #e5e7eb; font-size: 12px; padding: 6px 8px; width: 100%; margin-bottom: 6px; outline: none; font-family: inherit; }
+.todo-form input[type="date"] { font-family: 'Space Mono', monospace; color: #F0EDE8; }
+.todo-form input:focus, .todo-form select:focus { border-color: #F59E0B; }
+.todo-form select { appearance: auto; }
+.todo-form-row { display: flex; gap: 6px; }
+.todo-form-row > * { flex: 1; }
+.todo-form-actions { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.btn-add { background: #F59E0B; color: #111827; border: none; border-radius: 4px; font-size: 12px; font-weight: 600; padding: 6px 14px; cursor: pointer; font-family: inherit; }
+.btn-add:hover { background: #d48a00; }
+.btn-cancel { background: none; border: 1px solid #374151; color: #9ca3af; border-radius: 4px; font-size: 12px; padding: 6px 14px; cursor: pointer; font-family: inherit; }
+.btn-cancel:hover { border-color: #6b7280; color: #e5e7eb; }
+.form-error { font-size: 11px; color: #E8694A; margin-top: 4px; }
+.form-success { font-size: 11px; color: #4ECDC4; }
+.hidden { display: none; }
+.footer { margin-top: 80px; font-size: 11px; color: #4b5563; }
+
+/* Tag autocomplete */
+.tag-picker { position: relative; flex: 1; }
+.tag-picker input { margin-bottom: 0; }
+.tag-suggestions {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+  background: #111827; border: 1px solid #374151; border-radius: 4px;
+  margin-top: 2px; max-height: 200px; overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+.tag-suggestion {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 8px; font-size: 12px; cursor: pointer;
+  border-bottom: 1px solid #1f2937;
+}
+.tag-suggestion:last-child { border-bottom: none; }
+.tag-suggestion:hover, .tag-suggestion.tag-active { background: #1F2937; }
+.tag-chip {
+  display: inline-block; font-size: 11px; padding: 1px 7px;
+  border-radius: 10px; border: 1px solid; font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.tag-suggestion-meta { color: #6b7280; font-size: 10px; margin-left: auto; }
+.tag-create { color: #9ca3af; font-style: italic; }
+.tag-create strong { color: #F59E0B; font-style: normal; font-weight: 600; }
+
+/* AI agent API section */
+.ai-guide details { background: #1F2937; border: 1px solid #374151; border-radius: 8px; padding: 16px 20px; transition: border-color 0.2s; }
+.ai-guide details[open] { border-color: #F59E0B; }
+.ai-guide summary { cursor: pointer; font-size: 14px; font-weight: 600; color: #fff; list-style: none; outline: none; display: flex; justify-content: space-between; align-items: center; }
+.ai-guide summary::-webkit-details-marker { display: none; }
+.ai-guide summary::after { content: '+'; color: #6b7280; font-size: 18px; font-weight: 300; line-height: 1; }
+.ai-guide details[open] summary::after { content: '\2212'; color: #F59E0B; }
+.ai-guide-body { margin-top: 16px; font-size: 13px; color: #9ca3af; line-height: 1.6; }
+.ai-guide-body h4 { color: #e5e7eb; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 16px; margin-bottom: 6px; font-weight: 600; }
+.ai-guide-body h4:first-child { margin-top: 0; }
+.ai-guide-body p { margin-bottom: 8px; }
+.ai-guide-body ul { padding-left: 18px; margin-bottom: 4px; }
+.ai-guide-body li { margin-bottom: 3px; }
+.ai-guide-body code { background: #111827; color: #F59E0B; padding: 1px 6px; border-radius: 3px; font-family: 'Space Mono', ui-monospace, monospace; font-size: 12px; }
+.ai-guide-body pre { background: #0D1520; border: 1px solid #374151; border-radius: 4px; padding: 10px 12px; overflow-x: auto; color: #e5e7eb; font-family: 'Space Mono', ui-monospace, monospace; font-size: 11px; line-height: 1.55; white-space: pre; }
+.ai-guide-body a { color: #F59E0B; text-decoration: none; }
+.ai-guide-body a:hover { text-decoration: underline; }
