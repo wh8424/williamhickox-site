@@ -1,14 +1,11 @@
 import { signIn } from "@/auth";
 
-// Server-action button. Mirrors the ops dashboard's signin form so
-// the OAuth flow looks identical. After Google completes, NextAuth
-// redirects to /.
-export default function SignInButton() {
+export default function SignInButton({ callbackUrl }: { callbackUrl?: string }) {
   return (
     <form
       action={async () => {
         "use server";
-        await signIn("google", { redirectTo: "/" });
+        await signIn("google", { redirectTo: callbackUrl ?? "/" });
       }}
     >
       <button type="submit" className="btn-signin">
