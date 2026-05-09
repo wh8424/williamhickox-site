@@ -13,16 +13,26 @@ const ALLOWED_BOTS = new Set<string>([
   "crypto.williamhickox.com",
 ]);
 
+// Every error path ends in a redirect — never raw JSON. A user landing
+// on a stringified error here can't recover; a redirect to / or /signin
+// always gives them a way forward, and the bot-side 30s debounce
+// prevents this from looping if /signin → mint-and-redirect → bot keeps
+// failing.
 export async function GET(req: NextRequest) {
+  const home = new URL("/", req.nextUrl.origin);
+
   const bot = req.nextUrl.searchParams.get("bot");
   if (!bot || !ALLOWED_BOTS.has(bot)) {
-    return NextResponse.json(
-      { error: "invalid bot parameter" },
-      { status: 400 },
-    );
+    return NextResponse.redirect(home);
   }
 
-  const session = await auth();
+  let session;
+  try {
+    session = await auth();
+  } catch {
+    return NextResponse.redirect(home);
+  }
+
   if (!session?.user?.email) {
     const callback = `/api/sso/mint-and-redirect?bot=${encodeURIComponent(bot)}`;
     const signinUrl = new URL("/signin", req.nextUrl.origin);
@@ -32,19 +42,22 @@ export async function GET(req: NextRequest) {
 
   const secret = process.env.SSO_SECRET;
   if (!secret) {
-    return NextResponse.json(
-      { error: "SSO_SECRET not configured" },
-      { status: 503 },
-    );
+    return NextResponse.redirect(home);
   }
 
-  const token = await new SignJWT({ email: session.user.email.toLowerCase() })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("60s")
-    .sign(new TextEncoder().encode(secret));
+  try {
+    const token = await new SignJWT({
+      email: session.user.email.toLowerCase(),
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("60s")
+      .sign(new TextEncoder().encode(secret));
 
-  return NextResponse.redirect(
-    `https://${bot}/sso?token=${encodeURIComponent(token)}`,
-  );
+    return NextResponse.redirect(
+      `https://${bot}/sso?token=${encodeURIComponent(token)}`,
+    );
+  } catch {
+    return NextResponse.redirect(home);
+  }
 }
