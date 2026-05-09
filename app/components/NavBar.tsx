@@ -2,59 +2,76 @@
 
 import { useState } from "react";
 
-// Bot subdomain → outbound SSO redirect target. The Ops link is a
-// direct href because ops.williamhickox.com runs its own NextAuth
-// (Google) — the same Google session usually keeps that auth seamless
-// without an SSO mint hop.
 const BOTS: { label: string; host: string }[] = [
   { label: "PFD EA", host: "pfd.ea.williamhickox.com" },
   { label: "Equity", host: "yield.williamhickox.com" },
   { label: "Crypto", host: "crypto.williamhickox.com" },
 ];
 
+const MINT_TIMEOUT_MS = 5000;
+
 export default function NavBar() {
-  const [pendingHost, setPendingHost] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Independent loading state per button. A hung mint on one bot
+  // must not freeze the others.
+  const [pending, setPending] = useState<Set<string>>(new Set());
+
+  function setHostPending(host: string, on: boolean) {
+    setPending((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(host);
+      else next.delete(host);
+      return next;
+    });
+  }
 
   async function ssoRedirect(host: string) {
-    if (pendingHost) return;
-    setPendingHost(host);
-    setError(null);
+    if (pending.has(host)) return;
+    setHostPending(host, true);
+
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), MINT_TIMEOUT_MS);
+
     try {
-      const res = await fetch("/api/sso/mint", { method: "POST" });
+      const res = await fetch("/api/sso/mint", {
+        method: "POST",
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
       if (!res.ok) {
-        const detail = await res.text();
-        setError(`SSO mint failed (${res.status}): ${detail.slice(0, 120)}`);
-        setPendingHost(null);
+        // Mint failed — fall through to the bot directly. The bot's
+        // own /login + axios interceptor will route the user through
+        // the SSO flow if needed.
+        window.location.href = `https://${host}`;
         return;
       }
       const { token } = (await res.json()) as { token: string };
       window.location.href = `https://${host}/sso?token=${encodeURIComponent(token)}`;
-    } catch (e) {
-      setError(`SSO mint failed: ${String(e).slice(0, 120)}`);
-      setPendingHost(null);
+    } catch {
+      clearTimeout(timer);
+      window.location.href = `https://${host}`;
+    } finally {
+      // If the navigation fired, we never reach this. If it didn't
+      // (e.g. dev console error), unblock the button.
+      setHostPending(host, false);
     }
   }
 
   return (
-    <>
-      <nav className="navbar" aria-label="dashboard navigation">
-        <a href="https://ops.williamhickox.com" className="nav-link">
-          Ops
-        </a>
-        {BOTS.map((b) => (
-          <button
-            key={b.host}
-            type="button"
-            className="nav-link"
-            disabled={pendingHost !== null}
-            onClick={() => ssoRedirect(b.host)}
-          >
-            {pendingHost === b.host ? "Signing in…" : b.label}
-          </button>
-        ))}
-      </nav>
-      {error && <div className="form-error">{error}</div>}
-    </>
+    <nav className="navbar" aria-label="dashboard navigation">
+      <a href="https://ops.williamhickox.com" className="nav-link">
+        Ops
+      </a>
+      {BOTS.map((b) => (
+        <button
+          key={b.host}
+          type="button"
+          className="nav-link"
+          disabled={pending.has(b.host)}
+          onClick={() => ssoRedirect(b.host)}
+        >
+          {pending.has(b.host) ? "Signing in…" : b.label}
+        </button>
+      ))}
+    </nav>
   );
 }

@@ -17,6 +17,33 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   pages: { signIn: "/signin" },
+  // Shared session cookie across *.williamhickox.com so a sign-in on
+  // any subdomain authenticates all of them. CSRF stays host-only —
+  // the __Host- prefix forbids a Domain attribute. Cookie name was
+  // bumped to -v2 to avoid colliding with previously-issued host-only
+  // cookies of the same name (RFC 6265 §5.4 would have served the
+  // older host-only one first, silently breaking the rollout).
+  cookies: {
+    sessionToken: {
+      name: "__Secure-authjs.session-token-v2",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: true,
+        domain: ".williamhickox.com",
+      },
+    },
+    csrfToken: {
+      name: "__Host-authjs.csrf-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: true,
+      },
+    },
+  },
   callbacks: {
     async signIn({ user }) {
       const email = user.email?.toLowerCase();
